@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quiro+ — site
 
-## Getting Started
+Landing page da **Quiro+**, clínica de quiropraxia e fisioterapia da Dra. Priscila Santos (Bauru-SP).
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router), React 19, Tailwind CSS 4, GSAP, Framer Motion, componentes do
+[React Bits](https://reactbits.dev) e uma animação 3D do logo em three.js.
+
+## Rodando
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm run build   # build de produção (página estática)
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Onde editar o conteúdo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Quase todo o texto do site fica em **`src/lib/constants.ts`**:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| O quê | Constante |
+|---|---|
+| Número do WhatsApp e mensagem padrão | `WHATSAPP_NUMBER`, `WHATSAPP_MESSAGE` |
+| Endereço, telefone, horário | `CONTACT_INFO` |
+| Instagram | `SOCIAL_LINKS` |
+| Nota e link do perfil no Google | `GOOGLE_REVIEWS` |
+| Avaliações exibidas | `REVIEWS_DATA` |
+| Serviços (cards e modal) | `SERVICES_DATA` |
+| Menu de serviços | `NAV_CATEGORIES` |
+| Textos da seção "Quem sou" | `BIO_BLOCKS` |
+| Fotos da galeria | `GALLERY_IMAGES` |
+| Vídeos | `VIDEO_ITEMS` |
 
-## Learn More
+## Estrutura
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/                  layout (metadados, fontes, dados estruturados), página e CSS global
+  components/           seções da página, na ordem:
+    HeroSection           animação 3D do logo (carrega /js/quiro-hero-3d.js)
+    SpineScrollSection    "Quem sou" com a coluna fixa que desce com a rolagem
+    ServicesSection       cards de serviços + modal de detalhes
+    GallerySection        galeria de fotos dos atendimentos
+    VideoSection          vídeos dos atendimentos
+    TestimonialsCarousel  avaliações do Google
+    ContactSection        formulário que abre o WhatsApp
+    reactbits/            componentes do React Bits (Depth Carousel, Card Swap, Accordion Gallery,
+                          Split Text, Fold Text, Glare Hover, Star Border), com pequenas adaptações
+                          comentadas no topo de cada arquivo
+    GoldButton.tsx        botão dourado padrão (Star Border)
+  hooks/                useMediaQuery
+  lib/constants.ts      conteúdo do site
+public/
+  images/               foto da Dra., coluna, galeria (WebP) e imagem estática do hero
+  videos/lv/            vídeos da seção de vídeos (MP4 otimizado + pôster)
+  js/quiro-hero-3d.js   animação 3D compilada (gerada por animacao-hero-js)
+animacao-hero-js/       código-fonte e demo da animação do hero — ver o README da pasta
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Adicionando fotos e vídeos
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Guarde os arquivos originais em `midia-original/` (fica fora do git e do deploy) e coloque em `public/`
+só as versões otimizadas:
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Fotos da galeria:** WebP com no máximo 1080×1440, qualidade ~78 (ex.: com `sharp`), em
+  `public/images/galeria/`; depois adicione em `GALLERY_IMAGES`.
+- **Vídeos:** MP4 H.264 720×1280, CRF ~25, com `-movflags +faststart`, e um pôster JPG, em
+  `public/videos/lv/`; depois adicione em `VIDEO_ITEMS`.
