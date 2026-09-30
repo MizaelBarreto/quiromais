@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
+import { CONTACT_INFO, SOCIAL_LINKS } from "@/lib/constants";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -15,10 +16,14 @@ const cormorant = Cormorant_Garamond({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#F4EBDD",
+};
+
 export const metadata: Metadata = {
   title: "Quiro+ | Priscila Santos — Quiropraxia e Fisioterapia Especializada",
   description:
-    "Quiropraxia e fisioterapia com Priscila Santos. Tratamento especializado em coluna, dores cervicais, ciáticas, enxaquecas e terapias complementares. Agende sua avaliação.",
+    "Quiropraxia e fisioterapia com Priscila Santos em Bauru-SP. Tratamento especializado em coluna, dores cervicais, ciáticas, enxaquecas e terapias complementares. Agende sua avaliação.",
   keywords: [
     "quiropraxia",
     "fisioterapia",
@@ -28,6 +33,8 @@ export const metadata: Metadata = {
     "dor ciática",
     "Priscila Santos",
     "Quiro+",
+    "quiropraxia Bauru",
+    "fisioterapia Bauru",
     "tratamento de coluna",
     "dry needling",
     "auriculoterapia",
@@ -57,7 +64,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${cormorant.variable} h-full antialiased`}
     >
       <head>
-        <meta name="theme-color" content="#F4EBDD" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -70,6 +76,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               "@id": "#quiro-plus",
               url: "https://quiromais.com.br",
               image: "/images/fotoPriscila.png",
+              telephone: "+55-14-99640-6556",
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: `Pluri Working - ${CONTACT_INFO.street}`,
+                addressLocality: CONTACT_INFO.city,
+                addressRegion: CONTACT_INFO.state,
+                postalCode: CONTACT_INFO.postalCode,
+                addressCountry: "BR",
+              },
+              sameAs: [SOCIAL_LINKS.instagram],
               priceRange: "$$",
               medicalSpecialty: "Chiropractic",
               availableService: [

@@ -1,19 +1,39 @@
 // ── WhatsApp ──
-export const WHATSAPP_NUMBER = "55XXXXXXXXXXX"; // TODO: substituir pelo número real
+export const WHATSAPP_NUMBER = "5514996406556";
 export const WHATSAPP_MESSAGE = "Olá! Gostaria de agendar uma consulta com a Priscila.";
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
 // ── Social Links ──
 export const SOCIAL_LINKS = {
-  instagram: "https://instagram.com/quiromais", // TODO: substituir pelo perfil real
-  whatsapp: WHATSAPP_URL,
+  instagram: "https://www.instagram.com/quiromaisoficial",
+  instagramHandle: "@quiromaisoficial",
 };
 
 // ── Contact Info ──
+const ADDRESS_FULL =
+  "Pluri Working - Av. Affonso José Aiello, 10-95 - Lj 08 - Vila Aviação, Bauru - SP, 17018-520";
+
 export const CONTACT_INFO = {
-  address: "Rua Exemplo, 123 — Centro, Cidade/UF", // TODO: substituir
-  phone: "(XX) XXXXX-XXXX", // TODO: substituir
-  hours: "Seg a Sex: 8h às 19h | Sáb: 8h às 13h", // TODO: substituir
+  address: ADDRESS_FULL,
+  addressLines: [
+    "Pluri Working — Av. Affonso José Aiello, 10-95, Lj 08",
+    "Vila Aviação, Bauru - SP, 17018-520",
+  ],
+  street: "Av. Affonso José Aiello, 10-95 - Lj 08",
+  city: "Bauru",
+  state: "SP",
+  postalCode: "17018-520",
+  mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS_FULL)}`,
+  phone: "(14) 99640-6556",
+  phoneHref: "tel:+5514996406556",
+  hours: "Seg a Sex: 8h às 19h | Sáb: 8h às 13h", // TODO: confirmar horário real
+};
+
+// ── Google Reviews (selo da seção de avaliações) ──
+export const GOOGLE_REVIEWS = {
+  rating: "5,0",
+  summary: "200+ avaliações 5 estrelas",
+  url: "https://maps.app.goo.gl/2GhxCKbF7XKEkmyG8",
 };
 
 // ── Nav Menu Items ──
@@ -213,43 +233,77 @@ export const SERVICES_DATA: ServiceCategory[] = [
   },
 ];
 
+// ── Galeria (fotos em public/images/galeria, geradas a partir dos arquivos IMG_*) ──
+export const GALLERY_IMAGES = [
+  { image: "/images/galeria/img-9465.webp", label: "Avaliação inicial", alt: "Dra. Priscila Santos conversando com paciente durante a avaliação inicial, com ficha de anamnese" },
+  { image: "/images/galeria/img-0094.webp", label: "Avaliação postural", alt: "Avaliação dos pés e do alinhamento dos membros inferiores com o paciente deitado" },
+  { image: "/images/galeria/img-0104.webp", label: "Ajuste torácico", alt: "Ajuste quiroprático na região torácica com a paciente deitada de bruços" },
+  { image: "/images/galeria/img-0133.webp", label: "Mobilização torácica", alt: "Mobilização da coluna torácica com a paciente sentada e as mãos atrás da cabeça" },
+  { image: "/images/galeria/img-0111.webp", label: "Ajuste lombar", alt: "Ajuste quiroprático na região lombar com a paciente deitada de bruços" },
+  { image: "/images/galeria/img-9435.webp", label: "Ajuste lombopélvico", alt: "Ajuste lombopélvico com o paciente deitado de lado na maca" },
+  { image: "/images/galeria/img-0154.webp", label: "Dry Needling", alt: "Aplicação de dry needling com agulhas finas em pontos-gatilho das costas" },
+];
+
+// ── Vídeos (public/videos/lv, gerados a partir dos arquivos lv_*) ──
+export const VIDEO_ITEMS = [
+  {
+    image: "/videos/lv/lv-ajustes-1-poster.jpg",
+    video: "/videos/lv/lv-ajustes-1.mp4",
+    title: "Ajustes cervical e torácico",
+    alt: "Vídeo: Dra. Priscila Santos realizando ajustes quiropráticos nas regiões cervical e torácica",
+  },
+  {
+    image: "/videos/lv/lv-ajustes-2-poster.jpg",
+    video: "/videos/lv/lv-ajustes-2.mp4",
+    title: "Rotina de atendimentos",
+    alt: "Vídeo: sequência de atendimentos com ajustes quiropráticos em diferentes pacientes",
+  },
+];
+
 // ── Reviews Data ──
+// Avaliações reais do perfil no Google (texto sem alterações; nome com inicial do sobrenome)
 export const REVIEWS_DATA = [
   {
-    name: "Ana Carolina S.",
+    name: "Eduardo C.",
     rating: 5,
-    text: "A Priscila é incrível! Cheguei com uma dor terrível no pescoço e saí me sentindo outra pessoa. O atendimento é acolhedor e muito profissional.",
-    date: "2 meses atrás",
+    text: "Salvou minha coluna. Tive uma recaída por causa de uma hérnia e a Priscila reverteu o quadro. Excelente",
+    date: "ago/2026",
   },
   {
-    name: "Rafael M.",
+    name: "Aline O.",
     rating: 5,
-    text: "Depois de anos sofrendo com dor ciática, finalmente encontrei um tratamento que funciona. A Quiro+ mudou minha qualidade de vida!",
-    date: "3 meses atrás",
+    text: "Fiz uma sessão com a Dra Priscila e foi muito boa! Estava com dor na escapula e com tensão nos ombros e depois da sessão melhorou 100% ❤️",
+    date: "jul/2026",
   },
   {
-    name: "Juliana P.",
+    name: "Ubirajara F.",
     rating: 5,
-    text: "Fiz quiropraxia durante toda a minha gestação e foi maravilhoso. A Priscila tem um cuidado especial com gestantes. Super recomendo!",
-    date: "1 mês atrás",
+    text: "Priscila, e uma pessoa maravilhosa e ótima profissional, me deu toda atenção quando passei por um problema de hérnia de disco, sempre me mandava mensagem pra saber como eu estava progredindo com minha recuperação",
+    date: "ago/2026",
   },
   {
-    name: "Carlos Eduardo L.",
+    name: "Rogério P.",
     rating: 5,
-    text: "Atendimento de excelência! A estrutura é linda e a Priscila explica tudo com muita clareza. Me sinto seguro e bem cuidado.",
-    date: "2 semanas atrás",
+    text: "Profissional de experiência! Super indico. Está sendo uma experiência excelente. Uma recuperação fantástica para meu caso.",
+    date: "set/2026",
   },
   {
-    name: "Mariana F.",
+    name: "João Paulo B.",
     rating: 5,
-    text: "Sofria com enxaquecas há anos e nenhum remédio resolvia. Após o tratamento com a Priscila, minhas crises reduziram drasticamente!",
-    date: "1 mês atrás",
+    text: "Excelente profissional, qualidade do serviço nota 10, vem ajudando muito no alívio dos incômodos.",
+    date: "ago/2026",
   },
   {
-    name: "Pedro Henrique A.",
+    name: "Laura R.",
     rating: 5,
-    text: "Como atleta, a quiropraxia esportiva da Quiro+ melhorou muito minha performance e recuperação. Profissional impecável!",
-    date: "3 semanas atrás",
+    text: "Amei o atendimento , super humanizado e sao uns amores ❤️",
+    date: "set/2026",
+  },
+  {
+    name: "Carolaine Q.",
+    rating: 5,
+    text: "Ótima profissional, muito atenciosa e apaixonada pelo que faz! Super recomendo!",
+    date: "set/2026",
   },
 ];
 

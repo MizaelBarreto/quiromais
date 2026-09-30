@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CardSwap, { Card } from "./CardSwap";
+import GlareHover from "./reactbits/GlareHover";
+import SplitText from "./reactbits/SplitText";
+import GoldButton from "./GoldButton";
+import WhatsAppIcon from "./icons/WhatsAppIcon";
 import { SERVICES_DATA, WHATSAPP_NUMBER, type ServiceDetail } from "@/lib/constants";
 
 function ServiceIcon({ icon }: { icon: string }) {
@@ -57,12 +61,14 @@ function ServiceIcon({ icon }: { icon: string }) {
     ),
   };
 
-  return <div className="w-12 h-12 text-[#C9A15C] mb-3">{icons[icon] || icons.shield}</div>;
+  return <div className="w-12 h-12 text-[#C9A15C] mb-3" aria-hidden="true">{icons[icon] || icons.shield}</div>;
 }
 
 export default function ServicesSection() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const lastFocusRef = useRef<HTMLElement | null>(null);
 
   const currentCategory = SERVICES_DATA[activeTab];
 
@@ -89,6 +95,20 @@ export default function ServicesSection() {
     return () => window.removeEventListener("open-service-modal", handleOpenModal);
   }, []);
 
+  // Modal: foco vai para o botão fechar, página não rola por trás, foco volta ao fechar
+  useEffect(() => {
+    if (!selectedService) return;
+    lastFocusRef.current = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const id = requestAnimationFrame(() => closeBtnRef.current?.focus());
+    return () => {
+      cancelAnimationFrame(id);
+      document.body.style.overflow = prevOverflow;
+      lastFocusRef.current?.focus?.();
+    };
+  }, [selectedService]);
+
   // Close modal on ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -109,12 +129,21 @@ export default function ServicesSection() {
         
         {/* Section Header */}
         <div className="text-center mb-12">
-          <span className="text-[#C9A15C] text-xs tracking-[0.3em] uppercase font-semibold block mb-2">
+          <span className="text-gold-deep text-xs tracking-[0.3em] uppercase font-semibold block mb-2">
             Nossos Serviços
           </span>
-          <h2 className="font-serif text-4xl sm:text-5xl font-bold text-[#2B2318] mb-4">
-            Cuidado completo para o seu corpo
-          </h2>
+          <SplitText
+            tag="h2"
+            text="Cuidado completo para o seu corpo"
+            className="font-serif text-4xl sm:text-5xl font-bold text-[#2B2318] mb-4 leading-[1.15] pb-1"
+            splitType="chars"
+            delay={28}
+            duration={0.9}
+            from={{ opacity: 0, y: 44 }}
+            to={{ opacity: 1, y: 0 }}
+            threshold={0.2}
+            rootMargin="-40px"
+          />
           <div className="w-20 h-0.5 bg-gradient-to-r from-transparent via-[#C9A15C] to-transparent mx-auto mb-6" />
           <p className="text-[#2B2318]/70 text-base sm:text-lg max-w-2xl mx-auto font-medium">
             Clique em qualquer card para pausar e ver detalhes completos do tratamento.
@@ -122,15 +151,18 @@ export default function ServicesSection() {
         </div>
 
         {/* Category Navigation Tabs */}
-        <div className="flex flex-wrap items-center justify-center gap-3 mb-16">
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-16" role="tablist" aria-label="Categorias de serviços">
           {SERVICES_DATA.map((cat, idx) => (
             <button
               key={cat.category}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === idx}
               onClick={() => {
                 setActiveTab(idx);
                 setSelectedService(null);
               }}
-              className={`px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 ${
+              className={`min-h-11 px-6 py-3 rounded-full text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-300 ${
                 activeTab === idx
                   ? "bg-[#C9A15C] text-[#2B2318] shadow-lg scale-105"
                   : "bg-[#EFE2CE] text-[#2B2318]/70 hover:bg-[#C9A15C]/20 hover:text-[#2B2318]"
@@ -161,53 +193,67 @@ export default function ServicesSection() {
               >
                 {currentCategory.services.map((service, sIdx) => (
                   <Card key={service.name} onClick={() => setSelectedService(service)}>
-                    <div className="w-full h-[480px] bg-[#EFE2CE] rounded-3xl p-8 sm:p-10 border-2 border-[#C9A15C]/50 shadow-[0_20px_60px_rgba(43,35,24,0.15)] flex flex-col justify-between relative overflow-hidden backdrop-blur-md group hover:border-[#C9A15C] transition-all duration-300">
-                      
-                      {/* Top Badge */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#C9A15C] uppercase tracking-wider bg-[#2B2318] px-3.5 py-1 rounded-full">
-                          {currentCategory.category}
-                        </span>
-                        <span className="text-xs font-semibold text-[#2B2318]/40">
-                          0{sIdx + 1} / 0{currentCategory.services.length}
-                        </span>
-                      </div>
+                    <GlareHover
+                      width="100%"
+                      height="480px"
+                      background="#EFE2CE"
+                      borderRadius="24px"
+                      borderColor="rgba(201,161,92,0.5)"
+                      glareColor="#ffffff"
+                      glareOpacity={0.6}
+                      glareAngle={-40}
+                      glareSize={260}
+                      transitionDuration={1300}
+                      className="group cursor-pointer shadow-[0_20px_60px_rgba(43,35,24,0.15)] hover:shadow-[0_24px_70px_rgba(43,35,24,0.22)] transition-shadow duration-300"
+                      style={{ borderWidth: 2 }}
+                    >
+                      <div className="relative w-full h-full p-8 sm:p-10 flex flex-col justify-between">
 
-                      {/* Main Content */}
-                      <div className="my-auto">
-                        <ServiceIcon icon={service.icon} />
-                        <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#2B2318] mb-3 leading-tight group-hover:text-[#C9A15C] transition-colors">
-                          {service.name}
-                        </h3>
-                        <p className="text-[#2B2318]/80 text-base sm:text-lg leading-relaxed font-medium mb-4 line-clamp-3">
-                          {service.description}
-                        </p>
-                        <span className="text-xs font-bold text-[#C9A15C] uppercase tracking-wider underline underline-offset-4 flex items-center gap-1">
-                          Ver detalhes do tratamento
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </span>
-                      </div>
+                        {/* Top Badge */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#C9A15C] uppercase tracking-wider bg-[#2B2318] px-3.5 py-1 rounded-full">
+                            {currentCategory.category}
+                          </span>
+                          <span className="text-xs font-semibold text-[#2B2318]/60">
+                            0{sIdx + 1} / 0{currentCategory.services.length}
+                          </span>
+                        </div>
 
-                      {/* Card Footer */}
-                      <div className="pt-4 border-t border-[#C9A15C]/20 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedService(service);
-                          }}
-                          className="btn-gold text-xs py-2 px-4 flex items-center gap-2"
-                        >
-                          <span>Saber mais</span>
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                          </svg>
-                        </button>
-                        <span className="text-xs text-[#2B2318]/40 font-semibold">Quiro+</span>
+                        {/* Main Content */}
+                        <div className="my-auto">
+                          <ServiceIcon icon={service.icon} />
+                          <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#2B2318] mb-3 leading-tight group-hover:text-gold-deep transition-colors duration-300">
+                            {service.name}
+                          </h3>
+                          <p className="text-[#2B2318]/80 text-base sm:text-lg leading-relaxed font-medium mb-4 line-clamp-3">
+                            {service.description}
+                          </p>
+                          <span className="text-xs font-bold text-gold-deep uppercase tracking-wider underline underline-offset-4 flex items-center gap-1">
+                            Ver detalhes do tratamento
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        </div>
+
+                        {/* Card Footer */}
+                        <div className="pt-4 border-t border-[#C9A15C]/20 flex items-center justify-between">
+                          <GoldButton
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedService(service);
+                            }}
+                          >
+                            <span>Saber mais</span>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </GoldButton>
+                          <span className="text-xs text-[#2B2318]/60 font-semibold" aria-hidden="true">Quiro+</span>
+                        </div>
                       </div>
-                    </div>
+                    </GlareHover>
                   </Card>
                 ))}
               </CardSwap>
@@ -232,13 +278,18 @@ export default function ServicesSection() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-[#EFE2CE] text-[#2B2318] border-2 border-[#C9A15C] rounded-3xl p-6 sm:p-10 max-w-2xl w-full shadow-[0_25px_80px_rgba(0,0,0,0.4)] relative max-h-[90vh] overflow-y-auto"
+              className="bg-[#EFE2CE] text-[#2B2318] border-2 border-[#C9A15C] rounded-3xl p-6 sm:p-10 max-w-2xl w-full shadow-[0_25px_80px_rgba(0,0,0,0.4)] relative max-h-[90vh] overflow-y-auto overscroll-contain"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="service-modal-title"
             >
               {/* Close Button */}
               <button
+                ref={closeBtnRef}
+                type="button"
                 onClick={() => setSelectedService(null)}
-                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-[#2B2318] text-white flex items-center justify-center hover:bg-[#C9A15C] hover:text-[#2B2318] transition-colors"
+                className="absolute top-5 right-5 w-11 h-11 rounded-full bg-[#2B2318] text-white flex items-center justify-center hover:bg-[#C9A15C] hover:text-[#2B2318] transition-colors"
                 aria-label="Fechar"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -255,7 +306,7 @@ export default function ServicesSection() {
 
               <ServiceIcon icon={selectedService.icon} />
 
-              <h3 className="font-serif text-3xl sm:text-4xl font-bold text-[#2B2318] mb-3 leading-tight">
+              <h3 id="service-modal-title" className="font-serif text-3xl sm:text-4xl font-bold text-[#2B2318] mb-3 leading-tight pr-12">
                 {selectedService.name}
               </h3>
 
@@ -297,22 +348,19 @@ export default function ServicesSection() {
 
               {/* Modal CTA */}
               <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-[#C9A15C]/30">
-                <a
+                <GoldButton
                   href={getServiceWhatsAppUrl(selectedService.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-gold w-full sm:w-auto justify-center text-sm py-3.5 px-8 flex items-center gap-2"
+                  wrap
+                  className="w-full sm:w-auto"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
+                  <WhatsAppIcon className="w-5 h-5 flex-shrink-0" />
                   <span>Agendar {selectedService.name} via WhatsApp</span>
-                </a>
+                </GoldButton>
 
                 <button
                   type="button"
                   onClick={() => setSelectedService(null)}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-[#2B2318]/20 text-[#2B2318] text-sm font-semibold hover:bg-black/5 transition-colors"
+                  className="w-full sm:w-auto min-h-11 px-6 py-3 rounded-xl border border-[#2B2318]/20 text-[#2B2318] text-sm font-semibold hover:bg-black/5 transition-colors"
                 >
                   Fechar
                 </button>

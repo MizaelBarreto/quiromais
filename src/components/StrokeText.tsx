@@ -75,9 +75,12 @@ export default function StrokeText({
     const container = containerRef.current;
     if (!svg || !container) return;
 
-    // Accurately measure SVG text element lengths after font has loaded
-    const strokeLetters = svg.querySelectorAll<SVGTextElement>(".st-letter-stroke");
-    if (strokeLetters.length === letters.length) {
+    // Accurately measure SVG text element lengths after the web font has loaded
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      const strokeLetters = svg.querySelectorAll<SVGTextElement>(".st-letter-stroke");
+      if (strokeLetters.length !== letters.length) return;
       const realOffsets: number[] = [];
       let currentX = fontSize * 0.15;
       strokeLetters.forEach((el, idx) => {
@@ -90,7 +93,12 @@ export default function StrokeText({
         }
       });
       setMeasuredOffsets(realOffsets);
-    }
+    };
+    measure();
+    document.fonts?.ready.then(measure);
+    return () => {
+      cancelled = true;
+    };
   }, [text, fontSize, letterSpacing, letters]);
 
   useEffect(() => {
@@ -122,6 +130,15 @@ export default function StrokeText({
       fillLetters.forEach((el) => {
         el.style.opacity = "0";
       });
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      strokeLetters.forEach((el) => (el.style.strokeDashoffset = "0"));
+      fillLetters.forEach((el) => {
+        el.style.clipPath = "none";
+        el.style.opacity = "1";
+      });
+      return;
     }
 
     const runAnimation = () => {
@@ -198,7 +215,7 @@ export default function StrokeText({
               y={fontSize * 0.9}
               fontSize={fontSize}
               fontWeight={fontWeight}
-              fontFamily="'Cormorant Garamond', serif"
+              style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}
               fill="none"
               stroke={strokeColor}
               strokeWidth={strokeWidth}
@@ -219,7 +236,7 @@ export default function StrokeText({
                 y={fontSize * 0.9}
                 fontSize={fontSize}
                 fontWeight={fontWeight}
-                fontFamily="'Cormorant Garamond', serif"
+                style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}
                 fill={fillColor}
                 stroke="none"
               >
