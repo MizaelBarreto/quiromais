@@ -29,6 +29,19 @@ function loadHeroScript(): Promise<void> {
   });
 }
 
+// Sem GPU de verdade (WebGL por software: máquinas virtuais, GPUs bloqueadas, robôs de teste
+// como o PageSpeed) a cena 3D travaria a página: aí nem baixa o script e mostra a imagem estática.
+function hasHardwareWebGL() {
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2", { failIfMajorPerformanceCaveat: true });
+    if (!gl) return false;
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default function HeroSection() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
@@ -37,7 +50,7 @@ export default function HeroSection() {
     // Com "reduzir movimento" ativo, a própria animação desenha só o quadro final.
     let hero: QuiroHero | null = null;
     let cancelled = false;
-    loadHeroScript()
+    (hasHardwareWebGL() ? loadHeroScript() : Promise.reject(new Error("Sem aceleração de vídeo")))
       .then(() => {
         if (cancelled || !canvasRef.current || !window.createQuiroHero3D) return;
         hero = window.createQuiroHero3D(canvasRef.current); // lança erro se não houver WebGL
@@ -64,9 +77,9 @@ export default function HeroSection() {
           ref={canvasRef}
           className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${status === "ready" ? "opacity-100" : "opacity-0"}`}
         />
-        {/* Sem WebGL: imagem estática do logo */}
+        {/* Sem WebGL (ou só por software): imagem estática do logo */}
         {status === "fallback" && (
-          <div className="absolute inset-0 bg-cover bg-center bg-[url('/images/hero/quiro-hero-final-mobile.jpg')] md:bg-[url('/images/hero/quiro-hero-final-desktop.jpg')]" />
+          <div className="absolute inset-0 bg-cover bg-center bg-[url('/images/hero/quiro-hero-final-mobile.webp')] md:bg-[url('/images/hero/quiro-hero-final-desktop.webp')]" />
         )}
 
         {/* Subtle bottom gradient transition to section background */}

@@ -71,10 +71,10 @@ function canvasEl(w, h) {
 }
 
 // ------------------------------------------------------------------ texturas
-function makePlasterTextures(rand) {
+function makePlasterTextures(rand, mk = canvasEl) {
   const S = 1024;
   // cor
-  const col = canvasEl(S, S), g = col.getContext("2d", { willReadFrequently: true });
+  const col = mk(S, S), g = col.getContext("2d", { willReadFrequently: true });
   g.fillStyle = "#e4e2dd";
   g.fillRect(0, 0, S, S);
   // desenha de novo do outro lado quando encosta na borda (textura sem emenda)
@@ -113,7 +113,7 @@ function makePlasterTextures(rand) {
   }
 
   // relevo (bump): ondulação suave + poros
-  const bump = canvasEl(S, S), b = bump.getContext("2d", { willReadFrequently: true });
+  const bump = mk(S, S), b = bump.getContext("2d", { willReadFrequently: true });
   b.fillStyle = "#808080";
   b.fillRect(0, 0, S, S);
   for (let i = 0; i < 220; i++) {
@@ -146,8 +146,8 @@ function makePlasterTextures(rand) {
 }
 
 // relevo irregular do metal (martelado / fundido)
-function makeMetalBump(rand, dents) {
-  const S = 512, c = canvasEl(S, S), g = c.getContext("2d", { willReadFrequently: true });
+function makeMetalBump(rand, dents, mk = canvasEl) {
+  const S = 512, c = mk(S, S), g = c.getContext("2d", { willReadFrequently: true });
   g.fillStyle = "#808080";
   g.fillRect(0, 0, S, S);
   for (let i = 0; i < dents; i++) {
@@ -532,39 +532,168 @@ function buildLayout(font) {
   };
 }
 
+// ---------------------------------------------------------------------- assets
+// Geometria e texturas: a parte pesada da montagem (~1,5 s de CPU num celular). Roda num
+// Web Worker — este mesmo arquivo, carregado de novo como worker — para a página não travar;
+// sem Worker/OffscreenCanvas, roda na thread principal. O resultado é igual (sementes fixas).
+const V_OPT = { radius: 7, height: 8, dome: 3, spacing: 0.8, noiseAmp: 1.6, noiseFreq: 0.12, uvScale: 55 };
+const LETTER_OPT = { depth: 10, bevelThickness: 3.2, bevelSize: 2.4, bevelOffset: -0.6, bevelSegments: 6, curveSegments: 18 };
+const TAG_OPT = { depth: 1.2, bevelThickness: 0.7, bevelSize: 0.45, bevelSegments: 2, curveSegments: 6 };
+
+function buildAssets(mk) {
+  const rand = mulberry32(11);
+  const font = new Font(fontData);
+  const L = buildLayout(font);
+
+  // texturas opacas (a ordem importa: todas consomem o mesmo gerador aleatório)
+  const plaster = makePlasterTextures(rand, mk);
+  const images = {
+    wallCol: plaster.col,
+    wallBump: plaster.bump,
+    metalGold: makeMetalBump(rand, 70, mk),
+    metalSilver: makeMetalBump(rand, 160, mk),
+  };
+
+  const vShape = vertebraShape();
+  const P = L.plus;
+  const frameShape = crossShape(P.r * 0.37, P.r);
+  frameShape.holes.push(crossPath(P.r * 0.3, P.r * 0.92));
+  const lineLen = L.line.x1 - L.line.x0;
+  const lineShape = new THREE.Shape();
+  lineShape.moveTo(0, -1.8);
+  lineShape.lineTo(lineLen, -1.8);
+  lineShape.lineTo(lineLen, 1.8);
+  lineShape.lineTo(0, 1.8);
+  lineShape.closePath();
+  const tagGlyphs = {};
+  for (const c of L.tag.chars) {
+    if (c.ch !== " " && !tagGlyphs[c.ch]) tagGlyphs[c.ch] = organicExtrude(font.generateShapes(c.ch, L.tag.size), TAG_OPT);
+  }
+
+  const geometries = {
+    vertL: pillowGeometry(vShape, { ...V_OPT, seed: 3 }),
+    vertR: pillowGeometry(vShape, { ...V_OPT, seed: 17 }),
+    letters: L.letters.map((Lt) => organicExtrude(font.generateShapes(Lt.ch, L.FS), { ...LETTER_OPT, uvScale: 120 })),
+    frame: organicExtrude(frameShape, { depth: 10, bevelThickness: 2.4, bevelSize: 1.4, bevelOffset: -0.3, bevelSegments: 6, curveSegments: 4 }),
+    bed: organicExtrude(crossShape(P.r * 0.31, P.r * 0.93), { depth: 4, bevelThickness: 1, bevelSize: 0.8, bevelSegments: 2, curveSegments: 4 }),
+    diamond: diamondGeometry(P.r * 0.25),
+    line: organicExtrude(lineShape, { depth: 1.2, bevelThickness: 1, bevelSize: 0.8, bevelOffset: -0.6, bevelSegments: 3, curveSegments: 1 }),
+    tagGlyphs,
+  };
+  return { geometries, images };
+}
+
+// aplica fn a cada geometria (soltas, em listas ou em objetos), mantendo a estrutura
+function mapGeometries(geos, fn) {
+  const out = {};
+  for (const [k, v] of Object.entries(geos)) {
+    out[k] = Array.isArray(v) ? v.map(fn) : v.isBufferGeometry || v.attributes ? fn(v) : mapGeometries(v, fn);
+  }
+  return out;
+}
+
+// BufferGeometry ⇄ typed arrays (transferidos do worker sem cópia)
+function packGeometry(g, transfer) {
+  const out = { attributes: {}, index: null };
+  for (const [name, attr] of Object.entries(g.attributes)) {
+    out.attributes[name] = { array: attr.array, itemSize: attr.itemSize };
+    transfer.add(attr.array.buffer);
+  }
+  if (g.index) {
+    out.index = g.index.array;
+    transfer.add(g.index.array.buffer);
+  }
+  return out;
+}
+
+function unpackGeometry(o) {
+  const g = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(o.attributes)) g.setAttribute(name, new THREE.BufferAttribute(a.array, a.itemSize));
+  if (o.index) g.setIndex(new THREE.BufferAttribute(o.index, 1));
+  return g;
+}
+
+// textura a partir de canvas (thread principal) ou ImageBitmap (vinda do worker)
+function imageTexture(img) {
+  const t = new THREE.Texture(img);
+  // o WebGL ignora flipY em ImageBitmap; o padrão dessas texturas é aleatório, então tanto faz
+  t.flipY = !(typeof ImageBitmap !== "undefined" && img instanceof ImageBitmap);
+  t.needsUpdate = true;
+  return t;
+}
+
+const nextTask = () => new Promise((r) => setTimeout(r, 0));
+
+// Gera os assets no worker; sem suporte, ou se ele falhar, gera aqui mesmo.
+function loadAssets(workerUrl, onWorker) {
+  const local = () => nextTask().then(() => buildAssets(canvasEl));
+  if (!workerUrl || typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") return local();
+  return new Promise((resolve) => {
+    let worker;
+    try {
+      worker = new Worker(workerUrl);
+    } catch {
+      resolve(local());
+      return;
+    }
+    onWorker(worker);
+    const fallback = () => {
+      worker.terminate();
+      resolve(local());
+    };
+    worker.onmessage = (e) => {
+      if (e.data.error) return fallback();
+      worker.terminate();
+      resolve({ geometries: mapGeometries(e.data.geometries, unpackGeometry), images: e.data.images });
+    };
+    worker.onerror = (e) => {
+      e.preventDefault();
+      fallback();
+    };
+    worker.postMessage("build");
+  });
+}
+
+function serveAsWorker() {
+  self.onmessage = () => {
+    try {
+      const { geometries, images } = buildAssets((w, h) => new OffscreenCanvas(w, h));
+      const transfer = new Set();
+      const packed = mapGeometries(geometries, (g) => packGeometry(g, transfer));
+      const bitmaps = {};
+      for (const [k, c] of Object.entries(images)) {
+        bitmaps[k] = c.transferToImageBitmap();
+        transfer.add(bitmaps[k]);
+      }
+      self.postMessage({ geometries: packed, images: bitmaps }, [...transfer]);
+    } catch (err) {
+      self.postMessage({ error: String((err && err.message) || err) });
+    }
+  };
+}
+
 // ----------------------------------------------------------------- componente
-export function createQuiroHero3D(canvas, options) {
-  const opts = Object.assign({ autoplay: true, maxDpr: 2, reducedMotion: null, onComplete: null }, options || {});
+// Monta a cena com os assets prontos e devolve o controle da animação.
+function setupScene(canvas, renderer, env, assets, opts) {
+  const G = assets.geometries;
   const reduce =
     opts.reducedMotion != null
       ? opts.reducedMotion
       : !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.VSMShadowMap;
-
   const scene = new THREE.Scene();
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envRT = pmrem.fromScene(studioEnvironment(), 0.02);
-  scene.environment = envRT.texture;
+  scene.environment = env.rt.texture;
   scene.environmentIntensity = 1;
   scene.background = new THREE.Color("#dedad3");
 
   const camera = new THREE.PerspectiveCamera(22, 1, 1, 100000);
-  const rand = mulberry32(11);
-  const font = new Font(fontData);
-  const L = buildLayout(font);
+  const L = buildLayout(new Font(fontData));
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
 
   // --- parede de gesso
-  const plaster = makePlasterTextures(rand);
-  const wallMap = new THREE.CanvasTexture(plaster.col);
+  const wallMap = imageTexture(assets.images.wallCol);
   wallMap.colorSpace = THREE.SRGBColorSpace;
-  const wallBump = new THREE.CanvasTexture(plaster.bump);
+  const wallBump = imageTexture(assets.images.wallBump);
   for (const t of [wallMap, wallBump]) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(8, 8);
@@ -594,8 +723,8 @@ export function createQuiroHero3D(canvas, options) {
 
 
   // --- materiais
-  const metalBumpGold = new THREE.CanvasTexture(makeMetalBump(rand, 70));
-  const metalBumpSilver = new THREE.CanvasTexture(makeMetalBump(rand, 160));
+  const metalBumpGold = imageTexture(assets.images.metalGold);
+  const metalBumpSilver = imageTexture(assets.images.metalSilver);
   for (const t of [metalBumpGold, metalBumpSilver]) t.wrapS = t.wrapT = THREE.RepeatWrapping;
 
   const GOLD = new THREE.MeshPhysicalMaterial({
@@ -631,10 +760,7 @@ export function createQuiroHero3D(canvas, options) {
   const castAll = (o) => o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
 
   // --- vértebras
-  const vShape = vertebraShape();
-  const vOpt = { radius: 7, height: 8, dome: 3, spacing: 0.8, noiseAmp: 1.6, noiseFreq: 0.12, uvScale: 55 };
-  const vGeoL = pillowGeometry(vShape, { ...vOpt, seed: 3 });
-  const vGeoR = pillowGeometry(vShape, { ...vOpt, seed: 17 });
+  const vGeoL = G.vertL, vGeoR = G.vertR;
   const GAP = 1.4;
   const verts = L.verts.map((v, i) => {
     const gm = GOLD_ORGANIC.clone(), sm = SILVER.clone();
@@ -654,11 +780,8 @@ export function createQuiroHero3D(canvas, options) {
   });
 
   // --- letras
-  const letterOpts = {
-    depth: 10, bevelThickness: 3.2, bevelSize: 2.4, bevelOffset: -0.6, bevelSegments: 6, curveSegments: 18,
-  };
-  const letters = L.letters.map((Lt) => {
-    const geo = organicExtrude(font.generateShapes(Lt.ch, L.FS), { ...letterOpts, uvScale: 120 });
+  const letters = L.letters.map((Lt, j) => {
+    const geo = G.letters[j];
     const mat = GOLD_BRIGHT.clone();
     materials.push(mat);
     const mesh = new THREE.Mesh(geo, mat);
@@ -672,24 +795,16 @@ export function createQuiroHero3D(canvas, options) {
   const P = L.plus;
   const plus = new THREE.Group();
   plus.position.set(P.x, P.y, 0);
-  const frameShape = crossShape(P.r * 0.37, P.r);
-  frameShape.holes.push(crossPath(P.r * 0.3, P.r * 0.92));
   const frameMat = GOLD_BRIGHT.clone(), bedMat = GOLD_MATTE.clone(), diaMat = DIAMOND.clone(), bezelMat = GOLD_BRIGHT.clone();
   bedMat.color = new THREE.Color("#e0a93c");
   bedMat.roughness = 0.32;
   materials.push(frameMat, bedMat, diaMat, bezelMat);
-  const frame = new THREE.Mesh(
-    organicExtrude(frameShape, { depth: 10, bevelThickness: 2.4, bevelSize: 1.4, bevelOffset: -0.3, bevelSegments: 6, curveSegments: 4 }),
-    frameMat
-  );
-  const bed = new THREE.Mesh(
-    organicExtrude(crossShape(P.r * 0.31, P.r * 0.93), { depth: 4, bevelThickness: 1, bevelSize: 0.8, bevelSegments: 2, curveSegments: 4 }),
-    bedMat
-  );
+  const frame = new THREE.Mesh(G.frame, frameMat);
+  const bed = new THREE.Mesh(G.bed, bedMat);
   plus.add(frame, bed);
   castAll(plus);
   const dr = P.r * 0.25;
-  const dGeo = diamondGeometry(dr);
+  const dGeo = G.diamond;
   const bezelGeo = new THREE.TorusGeometry(dr * 1.04, dr * 0.13, 10, 40);
   const off = P.r * 0.6;
   const diamonds = [[0, 0], [-off, 0], [off, 0], [0, off], [0, -off]].map(([dx, dy], k) => {
@@ -709,18 +824,7 @@ export function createQuiroHero3D(canvas, options) {
 
   // --- linha
   const lineLen = L.line.x1 - L.line.x0;
-  const lineGeo = organicExtrude(
-    (() => {
-      const s = new THREE.Shape();
-      s.moveTo(0, -1.8);
-      s.lineTo(lineLen, -1.8);
-      s.lineTo(lineLen, 1.8);
-      s.lineTo(0, 1.8);
-      s.closePath();
-      return s;
-    })(),
-    { depth: 1.2, bevelThickness: 1, bevelSize: 0.8, bevelOffset: -0.6, bevelSegments: 3, curveSegments: 1 }
-  );
+  const lineGeo = G.line;
   const lineMat = GOLD_BRIGHT.clone();
   materials.push(lineMat);
   const line = new THREE.Mesh(lineGeo, lineMat);
@@ -735,15 +839,9 @@ export function createQuiroHero3D(canvas, options) {
   {
     const T = L.tag;
     let x = L.line.x0 + ((L.line.x1 - L.line.x0) - (T.sumW + T.extra * (T.chars.length - 1))) / 2;
-    const cache = {};
     for (const c of T.chars) {
       if (c.ch !== " ") {
-        if (!cache[c.ch]) {
-          cache[c.ch] = organicExtrude(font.generateShapes(c.ch, T.size), {
-            depth: 1.2, bevelThickness: 0.7, bevelSize: 0.45, bevelSegments: 2, curveSegments: 6,
-          });
-        }
-        const m = new THREE.Mesh(cache[c.ch], tagMat);
+        const m = new THREE.Mesh(G.tagGlyphs[c.ch], tagMat);
         m.position.set(x, T.y, 0);
         m.castShadow = true;
         tag.add(m);
@@ -881,7 +979,10 @@ export function createQuiroHero3D(canvas, options) {
   }
 
   // ------------------------------------------------------------ ciclo
-  let t = 0, raf = 0, startAt = 0, destroyed = false;
+  // O tempo avança no máximo MAX_STEP por quadro: se o aparelho engasgar (celular
+  // lento, aba em segundo plano), a animação espera em vez de pular adiante.
+  const MAX_STEP = 0.05;
+  let t = 0, raf = 0, last = 0, destroyed = false;
   function render(tt) {
     update(tt);
     renderer.render(scene, camera);
@@ -899,8 +1000,8 @@ export function createQuiroHero3D(canvas, options) {
 
   function loop(now) {
     if (destroyed) return;
-    if (!startAt) startAt = now - t * 1000;
-    t = Math.min(DURATION, (now - startAt) / 1000);
+    if (last) t = Math.min(DURATION, t + Math.min(MAX_STEP, (now - last) / 1000));
+    last = now;
     render(t);
     if (t < DURATION) raf = requestAnimationFrame(loop);
     else {
@@ -911,13 +1012,18 @@ export function createQuiroHero3D(canvas, options) {
   function stop() {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
-    startAt = 0;
+    last = 0;
   }
 
   resize();
   // compila os shaders antes do primeiro quadro (evita engasgo no início)
   const ready = (renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve()).then(() => {
-    if (!destroyed) render(t);
+    if (destroyed) return;
+    // Desenha uma vez o quadro final (tudo visível) antes do inicial: no celular o driver
+    // só termina shaders, sombras e texturas no primeiro desenho de cada material, e
+    // isso travava a animação no meio. Assim acontece antes do canvas aparecer.
+    render(DURATION);
+    render(t);
   });
 
   let ro = null;
@@ -941,7 +1047,7 @@ export function createQuiroHero3D(canvas, options) {
           return;
         }
         if (!raf) {
-          startAt = 0;
+          last = 0;
           raf = requestAnimationFrame(loop);
         }
       });
@@ -966,9 +1072,71 @@ export function createQuiroHero3D(canvas, options) {
         if (o.geometry) o.geometry.dispose();
       });
       materials.forEach((m) => m.dispose());
-      envRT.dispose();
-      pmrem.dispose();
+      env.rt.dispose();
+      env.pmrem.dispose();
       renderer.dispose();
+    },
+  };
+
+  return api;
+}
+
+// URL deste arquivo, para carregá-lo de novo como worker
+const SELF_URL = typeof document !== "undefined" && document.currentScript ? document.currentScript.src : "";
+
+export function createQuiroHero3D(canvas, options) {
+  const opts = Object.assign(
+    { autoplay: true, maxDpr: 2, reducedMotion: null, onComplete: null, workerUrl: SELF_URL },
+    options || {}
+  );
+
+  // criado já aqui: sem WebGL — ou com WebGL só por software, lento demais para esta cena —
+  // lança erro na hora (quem chama cai para a imagem estática)
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    powerPreference: "high-performance",
+    failIfMajorPerformanceCaveat: true,
+  });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
+
+  let destroyed = false, worker = null, env = null, inner = null;
+  // reflexos do estúdio (GPU, thread principal) enquanto o worker gera a geometria
+  const envReady = nextTask().then(() => {
+    if (destroyed) return;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    env = { pmrem, rt: pmrem.fromScene(studioEnvironment(), 0.02) };
+  });
+  const ready = Promise.all([loadAssets(opts.workerUrl, (w) => (worker = w)), envReady])
+    .then(([assets]) => nextTask().then(() => assets))
+    .then((assets) => {
+      if (destroyed) return;
+      inner = setupScene(canvas, renderer, env, assets, opts);
+      return inner.ready;
+    });
+
+  const api = {
+    ready,
+    duration: DURATION,
+    play: () => ready.then(() => inner && inner.play()),
+    replay: () => ready.then(() => inner && inner.replay()),
+    seek: (s) => ready.then(() => inner && inner.seek(s)),
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      if (worker) worker.terminate();
+      if (inner) inner.destroy();
+      else {
+        if (env) {
+          env.rt.dispose();
+          env.pmrem.dispose();
+        }
+        renderer.dispose();
+      }
     },
   };
 
@@ -976,4 +1144,6 @@ export function createQuiroHero3D(canvas, options) {
   return api;
 }
 
-window.createQuiroHero3D = createQuiroHero3D;
+if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) serveAsWorker();
+else window.createQuiroHero3D = createQuiroHero3D;
+

@@ -154,6 +154,24 @@
   animation: bounce-slow 2.5s ease-in-out infinite;
 }
 
+@keyframes slide-up-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up-in {
+  animation: slide-up-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up-in { animation: none; }
+}
+
+/* Banner de cookies: some quando já há uma escolha salva, a menos que tenha sido reaberto */
+html[data-cookie-choice] [data-cookie-banner]:not([data-open]) {
+  display: none;
+}
+
 /* ── Custom scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;

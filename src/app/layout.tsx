@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
-import { CONTACT_INFO, SOCIAL_LINKS } from "@/lib/constants";
+import { CONTACT_INFO, SITE_NAME, SITE_URL, SOCIAL_LINKS } from "@/lib/constants";
+import CookieConsent from "@/components/CookieConsent";
+import { GA_ID } from "@/lib/analytics";
+import { cookieChoiceScript } from "@/lib/consent";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -20,10 +23,19 @@ export const viewport: Viewport = {
   themeColor: "#F4EBDD",
 };
 
+const DESCRIPTION =
+  "Quiropraxia e fisioterapia em Bauru-SP com a Dra. Priscila Santos. Tratamento para dores na coluna, cervical, ciática e enxaqueca. Agende sua avaliação.";
+const SHARE_DESCRIPTION =
+  "Movimento, saúde e menos dor: quiropraxia e fisioterapia em Bauru-SP com a Dra. Priscila Santos. Agende sua avaliação.";
+
 export const metadata: Metadata = {
-  title: "Quiro+ | Priscila Santos — Quiropraxia e Fisioterapia Especializada",
-  description:
-    "Quiropraxia e fisioterapia com Priscila Santos em Bauru-SP. Tratamento especializado em coluna, dores cervicais, ciáticas, enxaquecas e terapias complementares. Agende sua avaliação.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Quiro+ | Quiropraxia e Fisioterapia em Bauru — Priscila Santos",
+    template: "%s | Quiro+",
+  },
+  description: DESCRIPTION,
+  applicationName: SITE_NAME,
   keywords: [
     "quiropraxia",
     "fisioterapia",
@@ -40,19 +52,19 @@ export const metadata: Metadata = {
     "auriculoterapia",
   ],
   authors: [{ name: "Priscila Santos" }],
+  category: "health",
   openGraph: {
-    title: "Quiro+ | Priscila Santos — Quiropraxia e Fisioterapia",
-    description:
-      "Movimento, saúde e menos dor — o cuidado que sua coluna merece. Agende sua avaliação com a Dra. Priscila Santos.",
+    title: "Quiro+ | Quiropraxia e Fisioterapia em Bauru-SP",
+    description: SHARE_DESCRIPTION,
+    url: "/",
     type: "website",
     locale: "pt_BR",
-    siteName: "Quiro+",
+    siteName: SITE_NAME,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Quiro+ | Priscila Santos",
-    description:
-      "Quiropraxia e fisioterapia especializada. Agende sua avaliação.",
+    title: "Quiro+ | Quiropraxia e Fisioterapia em Bauru-SP",
+    description: SHARE_DESCRIPTION,
   },
   robots: { index: true, follow: true },
 };
@@ -61,9 +73,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
+      // o script de cookies abaixo pode marcar o <html> antes da hidratação
+      suppressHydrationWarning
       className={`${inter.variable} ${cormorant.variable} h-full antialiased`}
     >
       <head>
+        {GA_ID && <script dangerouslySetInnerHTML={{ __html: cookieChoiceScript }} />}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -73,9 +88,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               name: "Quiro+ — Priscila Santos",
               description:
                 "Clínica de quiropraxia e fisioterapia especializada com Priscila Santos.",
-              "@id": "#quiro-plus",
-              url: "https://quiromais.com.br",
-              image: "/images/fotoPriscila.png",
+              "@id": `${SITE_URL}/#quiro-plus`,
+              url: SITE_URL,
+              image: `${SITE_URL}/images/fotoPriscila.png`,
+              logo: `${SITE_URL}/icon.png`,
+              email: CONTACT_INFO.email,
               telephone: "+55-14-99640-6556",
               address: {
                 "@type": "PostalAddress",
@@ -100,6 +117,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col bg-cream text-dark font-sans">
         {children}
+        <CookieConsent />
       </body>
     </html>
   );

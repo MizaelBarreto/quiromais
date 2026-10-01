@@ -169,7 +169,7 @@ export default function SpineScrollSection() {
               className="relative h-[1300px] xl:h-[1560px] aspect-[249/1003] flex items-center justify-center"
             >
               <Image
-                src="/images/coluna-vertebral.png"
+                src="/images/coluna-vertebral.webp"
                 alt=""
                 fill
                 unoptimized
@@ -184,7 +184,7 @@ export default function SpineScrollSection() {
         <div className="lg:hidden absolute inset-0 flex items-center justify-center pointer-events-none opacity-25 z-0">
           <div className="relative h-[880px] aspect-[249/1003]">
             <Image
-              src="/images/coluna-vertebral.png"
+              src="/images/coluna-vertebral.webp"
               alt=""
               fill
               unoptimized

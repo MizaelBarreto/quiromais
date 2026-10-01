@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { WHATSAPP_NUMBER, CONTACT_INFO } from "@/lib/constants";
+import { WHATSAPP_URL, CONTACT_INFO, PRIVACY_POLICY_PATH } from "@/lib/constants";
+import { trackEvent } from "@/lib/analytics";
 import SplitText from "./reactbits/SplitText";
 import FoldText from "./reactbits/FoldText";
 import GoldButton from "./GoldButton";
@@ -11,7 +13,11 @@ export default function ContactSection() {
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
   const [activeInput, setActiveInput] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const honeypotRef = useRef<HTMLInputElement>(null);
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -22,7 +28,7 @@ export default function ContactSection() {
   };
 
   const fieldError = (field: "name" | "phone" | "email", value: string) => {
-    if (field === "name" && !value.trim()) return "Nome é obrigatório";
+    if (field === "name" && value.trim().length < 2) return "Nome é obrigatório";
     if (field === "phone" && value.replace(/\D/g, "").length < 10) return "Telefone inválido";
     if (field === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "E-mail inválido";
     return "";
@@ -47,27 +53,44 @@ export default function ContactSection() {
       const msg = fieldError(f, form[f]);
       if (msg) newErrors[f] = msg;
     });
+    if (!consent) newErrors.consent = "Para continuar, aceite a Política de Privacidade";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const whatsappUrl = () => {
-    const message = `Olá! Gostaria de agendar minha avaliação.\n\nNome: ${form.name}\nTelefone: ${form.phone}${
-      form.email ? `\nE-mail: ${form.email}` : ""
-    }`;
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-  };
-
-  const handleSubmit = (e: FormEvent) => {
+  // Grava o cadastro (Supabase) e a rota avisa a clínica por e-mail
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (sending || !validate()) return;
 
-    // Abre no mesmo clique: dentro de setTimeout o Safari/iOS bloqueia como pop-up
-    const url = whatsappUrl();
-    const win = window.open(url, "_blank");
-    if (win) win.opener = null;
-    else window.location.href = url;
-    setSubmitted(true);
+    setSending(true);
+    setSendError("");
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: form.name,
+          telefone: form.phone,
+          email: form.email,
+          consentimento: consent,
+          website: honeypotRef.current?.value ?? "",
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setSendError(
+          res.status === 429 && body.error ? body.error : "Não foi possível enviar agora. Tente de novo em instantes.",
+        );
+        return;
+      }
+      trackEvent("generate_lead", { method: "formulario" });
+      setSubmitted(true);
+    } catch {
+      setSendError("Sem conexão com a internet. Verifique e tente de novo.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -205,21 +228,14 @@ export default function ContactSection() {
                     </div>
                     <h3 className="font-serif text-2xl font-bold mb-2">Solicitação Enviada!</h3>
                     <p className="text-[#2B2318]/75 text-sm" role="status">
-                      Você está sendo redirecionado(a) ao WhatsApp para agendar sua consulta.
+                      Recebemos seus dados. Em breve entraremos em contato para agendar sua avaliação.
                     </p>
-                    <a
-                      href={whatsappUrl()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block mt-4 text-sm font-semibold text-gold-deep underline underline-offset-4"
-                    >
-                      O WhatsApp não abriu? Toque aqui
-                    </a>
                   </motion.div>
                 ) : (
                   <motion.form
                     key="form"
                     onSubmit={handleSubmit}
+                    aria-busy={sending}
                     noValidate
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -331,9 +347,64 @@ export default function ContactSection() {
                       )}
                     </div>
 
+                    {/* Anti-spam: campo invisível que só robôs preenchem */}
+                    <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+                      <label htmlFor="cta-website">Não preencha este campo</label>
+                      <input ref={honeypotRef} id="cta-website" type="text" name="website" tabIndex={-1} autoComplete="off" />
+                    </div>
+
+                    {/* Consentimento LGPD — desmarcado por padrão e obrigatório */}
+                    <div>
+                      <div className="flex items-start gap-3 px-1">
+                        <input
+                          id="cta-consent"
+                          type="checkbox"
+                          checked={consent}
+                          onChange={(e) => {
+                            setConsent(e.target.checked);
+                            if (e.target.checked) {
+                              setErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.consent;
+                                return next;
+                              });
+                            }
+                          }}
+                          aria-invalid={!!errors.consent}
+                          aria-describedby={errors.consent ? "cta-consent-error" : undefined}
+                          className="h-6 w-6 flex-shrink-0 cursor-pointer rounded accent-[#C9A15C]"
+                        />
+                        <label htmlFor="cta-consent" className="cursor-pointer text-sm leading-relaxed text-[#F4EBDD]/80">
+                          Li e concordo com a{" "}
+                          <Link
+                            href={PRIVACY_POLICY_PATH}
+                            target="_blank"
+                            className="text-[#D8B77E] underline underline-offset-4 decoration-[#D8B77E]/50 hover:decoration-[#D8B77E]"
+                          >
+                            Política de Privacidade
+                          </Link>{" "}
+                          e autorizo a Quiro+ a usar estes dados para entrar em contato sobre o agendamento. *
+                        </label>
+                      </div>
+                      {errors.consent && (
+                        <span id="cta-consent-error" role="alert" className="text-red-300 text-xs mt-1 block px-2">
+                          {errors.consent}
+                        </span>
+                      )}
+                    </div>
+
+                    {sendError && (
+                      <p role="alert" className="rounded-xl border border-red-300/30 bg-red-300/10 px-4 py-3 text-sm text-red-200">
+                        {sendError}{" "}
+                        <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">
+                          Se preferir, fale pelo WhatsApp.
+                        </a>
+                      </p>
+                    )}
+
                     {/* Submit — React Bits Star Border */}
-                    <GoldButton type="submit" size="lg" tone="onDark" fullWidth wrap className="mt-2">
-                      <span>Quero Agendar Minha Avaliação</span>
+                    <GoldButton type="submit" size="lg" tone="onDark" fullWidth wrap className={`mt-2 ${sending ? "pointer-events-none opacity-70" : ""}`}>
+                      <span>{sending ? "Enviando…" : "Quero Agendar Minha Avaliação"}</span>
                       <svg className="w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover/gold:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>

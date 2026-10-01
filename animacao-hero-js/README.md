@@ -37,6 +37,7 @@ const hero = createQuiroHero3D(canvas, {   // ou createQuiroHero(canvas, …) na
   reducedMotion: null,     // null = respeita "reduzir movimento" do sistema (mostra o quadro final)
   maxDpr: 2,               // limite de resolução em telas retina
   onComplete() {},         // chamado ao fim dos 13 s
+  workerUrl: "…",          // padrão: o próprio arquivo (ver "Como carrega" abaixo); "" = sem worker
 });
 await hero.ready;          // cena montada e shaders compilados
 hero.replay();
@@ -44,7 +45,18 @@ hero.seek(4.2);            // pausa e desenha esse instante
 hero.destroy();            // para e libera a GPU
 ```
 
-`createQuiroHero3D` lança erro se não houver WebGL — é aí que o `index.html` cai para a 2D.
+`createQuiroHero3D` lança erro se não houver WebGL **ou se o WebGL for só por software** (`failIfMajorPerformanceCaveat`)
+— é aí que o `index.html` cai para a 2D e o site mostra a imagem estática.
+
+## Como carrega
+
+- A geometria (vértebras, letras, "+", slogan) e as texturas de gesso/metal — a parte pesada — são geradas
+  num **Web Worker**: o mesmo arquivo é carregado de novo como worker (vem do cache) e devolve os dados
+  prontos. Assim a página não trava enquanto a cena monta. Sem Worker/OffscreenCanvas (ou abrindo o
+  `index.html` direto do disco), gera na thread principal, com o mesmo resultado.
+- Antes de aparecer, a cena desenha uma vez o quadro final (tudo visível): o driver prepara shaders, sombras e
+  texturas nesse momento, e não no meio da animação.
+- O relógio avança no máximo 50 ms por quadro: se o aparelho engasgar, a animação espera em vez de pular.
 
 ## Usar no site (Next.js)
 
@@ -72,7 +84,7 @@ export default function HeroCanvas() {
   return (
     <div className="absolute inset-0">
       {/* poster enquanto a cena monta */}
-      <img src="/images/hero/quiro-hero-final-desktop.jpg" alt=""
+      <img src="/images/hero/quiro-hero-final-desktop.webp" alt=""
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${ready ? "opacity-0" : ""}`} />
       <Script src="/js/quiro-hero-3d.js" strategy="afterInteractive" onLoad={() => setLoaded(true)} />
       <canvas ref={ref} className="absolute inset-0 h-full w-full" role="img"

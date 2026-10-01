@@ -522,7 +522,7 @@ const DepthCarousel = ({
 
       {showIndicators && count > 1 && (
         <div
-          className="absolute bottom-4 left-1/2 z-[3000] flex -translate-x-1/2 gap-2 rounded-full bg-[rgba(14,16,22,0.4)] px-3 py-2 backdrop-blur-sm"
+          className="absolute bottom-4 left-1/2 z-[3000] flex -translate-x-1/2 rounded-full bg-[rgba(14,16,22,0.4)] px-1.5 py-0.5 backdrop-blur-sm"
           role="tablist"
           aria-label="Slides"
         >
@@ -533,11 +533,16 @@ const DepthCarousel = ({
               role="tab"
               aria-selected={active === i}
               aria-label={labels.goTo(i + 1)}
-              className={`h-[7px] cursor-pointer rounded-full transition-[width,background] duration-[250ms] ${
-                active === i ? 'w-5 bg-white' : 'w-[7px] bg-white/30'
-              }`}
+              className="flex h-6 min-w-6 cursor-pointer items-center justify-center px-0.5"
               onClick={() => setFocus(i, true)}
-            />
+            >
+              {/* área de toque de 24px; o ponto visível continua pequeno */}
+              <span
+                className={`block h-[7px] rounded-full transition-[width,background] duration-[250ms] ${
+                  active === i ? 'w-5 bg-white' : 'w-[7px] bg-white/30'
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

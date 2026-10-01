@@ -106,6 +106,8 @@ const SplitText: React.FC<SplitTextProps> = ({
         wordsClass: 'split-word',
         charsClass: 'split-char',
         reduceWhiteSpace: false,
+        // span não pode ter aria-label: nesse caso quem dá o nome acessível é o elemento pai
+        aria: tag === 'span' ? 'hidden' : 'auto',
         onSplit: (self: GSAPSplitText) => {
           assignTargets(self);
           return gsap.fromTo(

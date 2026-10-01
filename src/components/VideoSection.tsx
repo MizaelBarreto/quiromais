@@ -33,6 +33,23 @@ export default function VideoSection() {
   const [userPaused, setPaused] = useState<boolean | null>(null);
   const paused = userPaused ?? !!reduceMotion;
 
+  // Vídeos e pôsteres só começam a baixar quando a seção se aproxima (não pesam na abertura da página)
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setNear(true);
+        io.disconnect();
+      },
+      { rootMargin: "800px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   // Só reproduz quando a seção está visível
   useEffect(() => {
     const el = sectionRef.current;
@@ -130,8 +147,8 @@ export default function VideoSection() {
                     videoRefs.current[i] = el;
                   }}
                   className="block h-full w-full object-cover [pointer-events:none]"
-                  src={item.video as string}
-                  poster={item.image}
+                  src={near ? (item.video as string) : undefined}
+                  poster={near ? (item.image as string) : undefined}
                   muted
                   loop
                   playsInline

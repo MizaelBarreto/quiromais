@@ -24,6 +24,8 @@ export interface StrokeTextProps {
   letterSpacing?: number;
   reverse?: boolean;
   className?: string;
+  /** Nível do título para leitores de tela (o SVG faz o papel de um <h2>, <h3>…) */
+  headingLevel?: number;
 }
 
 function getCharWidthRatio(char: string): number {
@@ -51,6 +53,7 @@ export default function StrokeText({
   letterSpacing = -4,
   reverse = false,
   className = "",
+  headingLevel = 2,
 }: StrokeTextProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -203,6 +206,7 @@ export default function StrokeText({
         className="w-full h-auto overflow-visible"
         style={{ maxHeight: height }}
         role="heading"
+        aria-level={headingLevel}
         aria-label={text}
       >
         <g>

@@ -1,4 +1,6 @@
-import { WHATSAPP_URL, SOCIAL_LINKS, CONTACT_INFO } from "@/lib/constants";
+import Link from "next/link";
+import { WHATSAPP_URL, SOCIAL_LINKS, CONTACT_INFO, PRIVACY_POLICY_PATH } from "@/lib/constants";
+import CookiePreferencesButton from "./CookiePreferencesButton";
 import GoldButton from "./GoldButton";
 import WhatsAppIcon from "./icons/WhatsAppIcon";
 
@@ -6,13 +8,13 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   const quickLinks = [
-    { label: "Início", href: "#hero" },
-    { label: "Quem Sou", href: "#quem-sou" },
-    { label: "Serviços", href: "#servicos" },
-    { label: "Galeria", href: "#galeria" },
-    { label: "Vídeos", href: "#videos" },
-    { label: "Avaliações", href: "#avaliacoes" },
-    { label: "Agendar", href: "#contato" },
+    { label: "Início", href: "/#hero" },
+    { label: "Quem Sou", href: "/#quem-sou" },
+    { label: "Serviços", href: "/#servicos" },
+    { label: "Galeria", href: "/#galeria" },
+    { label: "Vídeos", href: "/#videos" },
+    { label: "Avaliações", href: "/#avaliacoes" },
+    { label: "Agendar", href: "/#contato" },
   ];
 
   return (
@@ -24,10 +26,10 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <a href="#hero" className="inline-flex items-center gap-1 mb-4">
+            <Link href="/#hero" className="inline-flex items-center gap-1 mb-4">
               <span className="font-serif text-3xl font-bold text-cream tracking-tight">Quiro</span>
               <span className="font-serif text-3xl font-bold text-gold tracking-tight">+</span>
-            </a>
+            </Link>
             <p className="text-cream/70 text-sm leading-relaxed mb-6">
               Quiropraxia e fisioterapia especializada. Cuidado que transforma vidas com excelência e acolhimento.
             </p>
@@ -62,16 +64,16 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-serif text-lg font-semibold text-cream mb-4">Links Rápidos</h4>
+            <h2 className="font-serif text-lg font-semibold text-cream mb-4">Links Rápidos</h2>
             <ul className="space-y-2.5">
               {quickLinks.map((link) => (
                 <li key={link.label}>
-                  <a
+                  <Link
                     href={link.href}
                     className="text-cream/70 hover:text-gold text-sm transition-colors duration-300"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -79,7 +81,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-serif text-lg font-semibold text-cream mb-4">Contato</h4>
+            <h2 className="font-serif text-lg font-semibold text-cream mb-4">Contato</h2>
             <ul className="space-y-3">
               <li className="flex items-start gap-2.5">
                 <svg className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,7 +121,7 @@ export default function Footer() {
 
           {/* CTA */}
           <div>
-            <h4 className="font-serif text-lg font-semibold text-cream mb-4">Agende Agora</h4>
+            <h2 className="font-serif text-lg font-semibold text-cream mb-4">Agende Agora</h2>
             <p className="text-cream/65 text-sm mb-4">
               Não deixe a dor esperar. Agende sua consulta e comece sua transformação.
             </p>
@@ -135,9 +137,13 @@ export default function Footer() {
           <p className="text-cream/60 text-sm">
             © {currentYear} Quiro+ — Todos os direitos reservados.
           </p>
-          <p className="text-cream/55 text-xs">
-            Desenvolvido com ♥ por MB Sistemas
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-cream/60">
+            <Link href={PRIVACY_POLICY_PATH} className="py-2 hover:text-gold transition-colors duration-300">
+              Política de Privacidade
+            </Link>
+            <CookiePreferencesButton className="py-2 hover:text-gold transition-colors duration-300" />
+            <span className="text-cream/55">Desenvolvido com ♥ por MB Sistemas</span>
+          </div>
         </div>
       </div>
     </footer>

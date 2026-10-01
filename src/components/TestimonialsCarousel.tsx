@@ -67,15 +67,19 @@ export default function TestimonialsCarousel() {
             target="_blank"
             rel="noopener noreferrer"
             className="group inline-flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-8 bg-white rounded-full pl-5 pr-6 py-3 border border-gold/20 shadow-[0_4px_20px_rgba(43,35,24,0.06)] hover:shadow-[0_10px_30px_rgba(43,35,24,0.1)] hover:border-gold/50 transition-[box-shadow,border-color] duration-300"
-            aria-label={`Nota ${GOOGLE_REVIEWS.rating} no Google — ${GOOGLE_REVIEWS.summary}. Ver no Google`}
           >
+            {/* nome acessível = texto visível + contexto (sem aria-label, que precisaria repetir o texto) */}
+            <span className="sr-only">Nota no Google:</span>
             <span className="flex items-center gap-2.5">
               <GoogleIcon />
               <span className="text-2xl font-bold text-dark leading-none">{GOOGLE_REVIEWS.rating}</span>
-              <StarRating rating={5} size="w-[18px] h-[18px]" />
+              <span aria-hidden="true">
+                <StarRating rating={5} size="w-[18px] h-[18px]" />
+              </span>
             </span>
             <span className="hidden sm:block w-px h-6 bg-dark/10" aria-hidden="true" />
             <span className="text-dark/75 text-sm font-medium">{GOOGLE_REVIEWS.summary}</span>
+            <span className="sr-only">(ver no Google)</span>
             <svg className="w-4 h-4 text-gold-deep transition-transform duration-300 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -123,7 +127,7 @@ export default function TestimonialsCarousel() {
                   <figcaption className="mt-4 flex items-center justify-between border-t border-gold/15 pt-4">
                     <span>
                       <span className="block font-semibold text-dark text-sm">{review.name}</span>
-                      <span className="block text-dark/60 text-xs">{review.date}</span>
+                      <span className="block text-dark/70 text-xs">{review.date}</span>
                     </span>
                     <span className="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center text-gold-deep font-bold text-sm" aria-hidden="true">
                       {review.name[0]}

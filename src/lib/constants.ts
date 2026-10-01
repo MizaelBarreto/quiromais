@@ -1,3 +1,12 @@
+// ── Site ──
+export const SITE_URL = "https://www.quiromaisoficial.com.br";
+export const SITE_NAME = "Quiro+";
+
+// ── LGPD ──
+export const PRIVACY_POLICY_PATH = "/politica-de-privacidade";
+// Mude a data quando alterar o texto da política: fica gravada junto de cada consentimento
+export const PRIVACY_POLICY_VERSION = "2026-10-01";
+
 // ── WhatsApp ──
 export const WHATSAPP_NUMBER = "5514996406556";
 export const WHATSAPP_MESSAGE = "Olá! Gostaria de agendar uma consulta com a Priscila.";
@@ -26,6 +35,7 @@ export const CONTACT_INFO = {
   mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS_FULL)}`,
   phone: "(14) 99640-6556",
   phoneHref: "tel:+5514996406556",
+  email: "quiromaisoficial@gmail.com",
   hours: "Seg a Sex: 8h às 19h | Sáb: 8h às 13h", // TODO: confirmar horário real
 };
 
