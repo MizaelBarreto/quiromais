@@ -5,6 +5,12 @@
 // - `renderItem`: o conteúdo de cada card pode ser qualquer coisa (aqui, <video>); o padrão continua sendo <img>.
 // - Roda do mouse só navega com gesto horizontal (trackpad), sem sequestrar a rolagem vertical da página.
 // - Rótulos de acessibilidade configuráveis (PT-BR) e cor de fundo do card configurável.
+// - Toque/clique sem arrastar não interrompe a troca em andamento (antes o carrossel parava entre dois
+//   cards); toques em botões dentro do card não iniciam arraste.
+// - Card da frente sem `filter` (nem a camada de tinta com mix-blend): com um <video> dentro, filtro e
+//   blend obrigam o navegador a recompor cada quadro do vídeo.
+// - A escala considera também a altura do palco: em telas baixas (celular deitado, notebook pequeno)
+//   o card inteiro — com os botões do rodapé — cabe na tela.
 
 import {
   useCallback,
@@ -71,6 +77,7 @@ interface CarouselConfig {
   ease: string;
   loop: boolean;
   cardWidth: number;
+  cardHeight: number;
   autoplayDelay: number;
 }
 
@@ -159,6 +166,7 @@ const DepthCarousel = ({
     ease,
     loop,
     cardWidth,
+    cardHeight,
     autoplayDelay
   };
 
@@ -196,12 +204,17 @@ const DepthCarousel = ({
 
       el.style.transform = `translate(-50%, -50%) scale(${sc}) translateX(${tx.toFixed(2)}px) translateZ(${tz.toFixed(2)}px) rotateY(${ry.toFixed(3)}deg)`;
       el.style.opacity = opacity.toFixed(3);
-      el.style.filter = `brightness(${brightness.toFixed(3)}) blur(${blurPx.toFixed(2)}px)`;
+      el.style.filter =
+        brightness > 0.999 && blurPx < 0.01 ? 'none' : `brightness(${brightness.toFixed(3)}) blur(${blurPx.toFixed(2)}px)`;
       el.style.zIndex = String(zi);
       el.style.pointerEvents = shown && opacity > 0.05 ? 'auto' : 'none';
 
       const ov = overlayRefs.current[i];
-      if (ov) ov.style.opacity = clamp(back * cfg.falloff * 1.25, 0, 0.86).toFixed(3);
+      if (ov) {
+        const ovOpacity = clamp(back * cfg.falloff * 1.25, 0, 0.86);
+        ov.style.opacity = ovOpacity.toFixed(3);
+        ov.style.display = ovOpacity < 0.005 ? 'none' : '';
+      }
     }
   }, []);
 
@@ -259,17 +272,19 @@ const DepthCarousel = ({
 
   const navigateBy = useCallback((step: number) => setFocus(focusRef.current + step, true), [setFocus]);
 
-  const updateScale = useCallback((w: number) => {
+  const updateScale = useCallback((w: number, h: number) => {
     const cfg = cfgRef.current;
     const needed = cfg.cardWidth + Math.abs(cfg.spread) * 2 + 120;
-    scaleRef.current = clamp(w / needed, 0.4, 1);
+    // 48px livres em cima e embaixo: os pontos de navegação (no rodapé do palco) não cobrem o card
+    const byHeight = h > 0 ? (h - 96) / cfg.cardHeight : 1;
+    scaleRef.current = clamp(Math.min(w / needed, byHeight), 0.4, 1);
   }, []);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     const ro = new ResizeObserver(entries => {
-      updateScale(entries[0].contentRect.width);
+      updateScale(entries[0].contentRect.width, entries[0].contentRect.height);
       layout(posRef.current);
     });
     ro.observe(root);
@@ -304,7 +319,8 @@ const DepthCarousel = ({
   const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     const cfg = cfgRef.current;
     if (cfg.count < 2) return;
-    tweenRef.current?.kill();
+    // Botões (setas, pontos, play/som) não começam arraste
+    if ((e.target as Element).closest('button')) return;
     dragRef.current = {
       x: e.clientX,
       startPos: posRef.current,
@@ -325,6 +341,10 @@ const DepthCarousel = ({
       const dx = e.clientX - drag.x;
       if (!drag.moved && Math.abs(dx) > 4) {
         drag.moved = true;
+        // Só aqui o arraste começa de fato: para a troca em andamento e parte de onde os cards estão
+        tweenRef.current?.kill();
+        drag.startPos = posRef.current;
+        drag.x = e.clientX;
         rootRef.current?.setPointerCapture(drag.id);
       }
       if (!drag.moved) return;
@@ -333,7 +353,7 @@ const DepthCarousel = ({
       drag.v = (e.clientX - drag.lastX) / dt;
       drag.lastX = e.clientX;
       drag.lastT = now;
-      posRef.current = drag.startPos - dx / stepPx;
+      posRef.current = drag.startPos - (e.clientX - drag.x) / stepPx;
       layout(posRef.current);
     },
     [layout]
@@ -418,7 +438,7 @@ const DepthCarousel = ({
 
   useEffect(() => {
     // Adaptação: recalcula a escala também quando espaçamento/largura do card mudam (não só no resize)
-    if (rootRef.current) updateScale(rootRef.current.clientWidth);
+    if (rootRef.current) updateScale(rootRef.current.clientWidth, rootRef.current.clientHeight);
     layout(posRef.current);
   }, [layout, updateScale, depth, spread, tilt, tiltDirection, visibleCards, falloff, blur, cardWidth, cardHeight, radius, count]);
 
@@ -450,7 +470,7 @@ const DepthCarousel = ({
         {data.map((item, i) => (
           <div
             key={i}
-            className="absolute left-1/2 top-1/2 cursor-pointer overflow-hidden shadow-[0_30px_60px_-20px_rgba(0,0,0,0.65),0_8px_20px_-10px_rgba(0,0,0,0.5)] [transform:translate(-50%,-50%)] [transform-origin:center] [will-change:transform,opacity,filter]"
+            className="absolute left-1/2 top-1/2 cursor-pointer overflow-hidden shadow-[0_30px_60px_-20px_rgba(0,0,0,0.65),0_8px_20px_-10px_rgba(0,0,0,0.5)] [transform:translate(-50%,-50%)] [transform-origin:center] [will-change:transform,opacity]"
             ref={el => {
               cardRefs.current[i] = el;
             }}
@@ -485,7 +505,7 @@ const DepthCarousel = ({
         <>
           <button
             type="button"
-            className="absolute left-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.55)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/40 hover:bg-[rgba(28,31,40,0.85)] active:scale-95"
+            className="absolute left-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.7)] text-white transition-[background,border-color,transform] duration-200 hover:border-white/40 hover:bg-[rgba(28,31,40,0.85)] active:scale-95"
             aria-label={labels.prev}
             onClick={() => navigateBy(-1)}
           >
@@ -502,7 +522,7 @@ const DepthCarousel = ({
           </button>
           <button
             type="button"
-            className="absolute right-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.55)] text-white backdrop-blur-md transition-[background,border-color,transform] duration-200 hover:border-white/40 hover:bg-[rgba(28,31,40,0.85)] active:scale-95"
+            className="absolute right-4 top-1/2 z-[3000] grid h-[42px] w-[42px] -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-[rgba(18,20,26,0.7)] text-white transition-[background,border-color,transform] duration-200 hover:border-white/40 hover:bg-[rgba(28,31,40,0.85)] active:scale-95"
             aria-label={labels.next}
             onClick={() => navigateBy(1)}
           >
@@ -522,7 +542,7 @@ const DepthCarousel = ({
 
       {showIndicators && count > 1 && (
         <div
-          className="absolute bottom-4 left-1/2 z-[3000] flex -translate-x-1/2 rounded-full bg-[rgba(14,16,22,0.4)] px-1.5 py-0.5 backdrop-blur-sm"
+          className="absolute bottom-4 left-1/2 z-[3000] flex -translate-x-1/2 rounded-full bg-[rgba(14,16,22,0.55)] px-1.5 py-0.5"
           role="tablist"
           aria-label="Slides"
         >

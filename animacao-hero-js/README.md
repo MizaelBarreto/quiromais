@@ -41,6 +41,7 @@ const hero = createQuiroHero3D(canvas, {   // ou createQuiroHero(canvas, …) na
 });
 await hero.ready;          // cena montada e shaders compilados
 hero.replay();
+hero.pause();              // para de desenhar (ex.: fora da tela); play() continua do mesmo ponto
 hero.seek(4.2);            // pausa e desenha esse instante
 hero.destroy();            // para e libera a GPU
 ```

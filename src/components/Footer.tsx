@@ -142,7 +142,6 @@ export default function Footer() {
               Política de Privacidade
             </Link>
             <CookiePreferencesButton className="py-2 hover:text-gold transition-colors duration-300" />
-            <span className="text-cream/55">Desenvolvido com ♥ por MB Sistemas</span>
           </div>
         </div>
       </div>

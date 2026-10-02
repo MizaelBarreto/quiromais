@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import DepthCarousel from "./reactbits/DepthCarousel";
 import SplitText from "./reactbits/SplitText";
@@ -17,21 +17,28 @@ const LABELS = {
   goTo: (n: number) => `Ir para o vídeo ${n}`,
 };
 
+// Sem backdrop-blur: em cima de um vídeo tocando, o desfoque seria refeito a cada quadro
 const iconBtn =
-  "grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors duration-200 hover:bg-black/65";
+  "grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-black/55 text-white transition-colors duration-200 hover:bg-black/75";
 
 export default function VideoSection() {
   const sectionRef = useRef<HTMLElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const [active, setActive] = useState(0);
+  const activeRef = useRef(0);
   // No celular o card de trás fica mais próximo, para o vídeo da frente ocupar mais a tela
   const compact = useMediaQuery("(max-width: 639px)");
   const [inView, setInView] = useState(false);
+  const [pageVisible, setPageVisible] = useState(true);
   const [muted, setMuted] = useState(true);
   // Com "reduzir movimento" o vídeo começa pausado (a pessoa ainda pode dar play)
   const reduceMotion = useReducedMotion();
-  const [userPaused, setPaused] = useState<boolean | null>(null);
+  const [userPaused, setUserPaused] = useState<boolean | null>(null);
   const paused = userPaused ?? !!reduceMotion;
+  // Estado real do vídeo da frente (e não o pedido): o botão mostra o que está acontecendo de fato
+  const [playing, setPlaying] = useState(false);
+  const [buffering, setBuffering] = useState(false);
 
   // Vídeos e pôsteres só começam a baixar quando a seção se aproxima (não pesam na abertura da página)
   const [near, setNear] = useState(false);
@@ -50,25 +57,88 @@ export default function VideoSection() {
     return () => io.disconnect();
   }, []);
 
-  // Só reproduz quando a seção está visível
+  // Só reproduz quando o carrossel está na tela. Observa o carrossel (e não a seção inteira): no celular
+  // a seção é mais alta que a tela e a fração visível dela nem sempre chegava ao limite — o vídeo ficava parado.
   useEffect(() => {
-    const el = sectionRef.current;
+    const el = stageRef.current;
     if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0.35 });
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0.3 });
     io.observe(el);
-    return () => io.disconnect();
+    const onVisibility = () => setPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  const shouldPlay = near && inView && pageVisible && !paused;
+  const shouldPlayRef = useRef(shouldPlay);
+  useEffect(() => {
+    shouldPlayRef.current = shouldPlay;
+    activeRef.current = active;
+  });
+
+  // play() com plano B: se o navegador barrar o som, segue sem som; se barrar a reprodução automática
+  // (ex.: modo economia de energia no iPhone), mostra o botão de play em vez de fingir que está tocando
+  const startVideo = useCallback((v: HTMLVideoElement) => {
+    v.play().catch((err: unknown) => {
+      if ((err as DOMException)?.name !== "NotAllowedError") return; // AbortError: pausado/trocado no meio; os eventos tentam de novo
+      if (!v.muted) {
+        v.muted = true;
+        setMuted(true);
+        v.play().catch(() => setUserPaused(true));
+      } else {
+        setUserPaused(true);
+      }
+    });
   }, []);
 
   // Apenas o vídeo da frente toca; os de trás ficam parados no pôster
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return;
-      const isFront = i === active;
-      v.muted = muted || !isFront;
-      if (isFront && inView && !paused) v.play().catch(() => {});
-      else v.pause();
+      if (i !== active) {
+        v.muted = true;
+        if (!v.paused) v.pause();
+        return;
+      }
+      v.muted = muted;
+      if (shouldPlay) {
+        if (v.paused) startVideo(v);
+      } else if (!v.paused) {
+        v.pause();
+      }
     });
-  }, [active, inView, muted, paused]);
+  }, [active, muted, shouldPlay, startVideo]);
+
+  useEffect(() => {
+    const v = videoRefs.current[active];
+    setPlaying(!!v && !v.paused);
+    setBuffering(false);
+  }, [active]);
+
+  // Play/pause e som são aplicados direto no toque: alguns navegadores (Safari/iOS) só liberam
+  // play() e som dentro do próprio gesto da pessoa, não depois de uma nova renderização
+  const togglePlay = () => {
+    const v = videoRefs.current[active];
+    if (playing) {
+      setUserPaused(true);
+      v?.pause();
+    } else {
+      setUserPaused(false);
+      if (v) startVideo(v);
+    }
+  };
+
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    const v = videoRefs.current[active];
+    if (!v) return;
+    v.muted = next;
+    if (!next && v.paused && shouldPlayRef.current) startVideo(v);
+  };
 
   return (
     <section
@@ -76,9 +146,9 @@ export default function VideoSection() {
       ref={sectionRef}
       className="section-padding bg-dark text-cream relative overflow-hidden"
     >
-      {/* Ambient glows */}
-      <div className="absolute -top-24 left-[10%] w-[28rem] h-[28rem] bg-gold/15 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
-      <div className="absolute -bottom-32 right-[5%] w-[30rem] h-[30rem] bg-gold-light/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
+      {/* Ambient glows (gradiente radial no lugar de blur: mesmo efeito, sem custo na rolagem) */}
+      <div className="absolute -top-24 left-[10%] w-[28rem] h-[28rem] rounded-full pointer-events-none bg-[radial-gradient(circle,rgba(201,161,92,0.15)_0%,rgba(201,161,92,0.15)_30%,transparent_70%)]" aria-hidden="true" />
+      <div className="absolute -bottom-32 right-[5%] w-[30rem] h-[30rem] rounded-full pointer-events-none bg-[radial-gradient(circle,rgba(216,183,126,0.1)_0%,rgba(216,183,126,0.1)_30%,transparent_70%)]" aria-hidden="true" />
 
       <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[0.85fr_1.15fr] gap-10 lg:gap-6 items-center">
         {/* Texto */}
@@ -122,7 +192,8 @@ export default function VideoSection() {
         </div>
 
         {/* React Bits — Depth Carousel */}
-        <div className="relative h-[480px] sm:h-[640px]">
+        {/* max-h: em telas baixas (celular deitado) o palco encolhe e o card escala junto, com os botões à vista */}
+        <div ref={stageRef} className="relative h-[480px] sm:h-[640px] max-h-[max(320px,calc(100svh-5rem))]">
           <DepthCarousel
             items={VIDEO_ITEMS}
             cardWidth={300}
@@ -145,6 +216,9 @@ export default function VideoSection() {
                 <video
                   ref={(el) => {
                     videoRefs.current[i] = el;
+                    // atributo "muted" de verdade no HTML (o React só define a propriedade): o iOS exige
+                    // o vídeo mudo para liberar a reprodução sem toque
+                    if (el) el.defaultMuted = true;
                   }}
                   className="block h-full w-full object-cover [pointer-events:none]"
                   src={near ? (item.video as string) : undefined}
@@ -152,9 +226,33 @@ export default function VideoSection() {
                   muted
                   loop
                   playsInline
-                  preload={isActive ? "metadata" : "none"}
+                  // o vídeo da frente já vai carregando antes de a seção chegar; os de trás só ao virem para a frente
+                  preload={isActive ? "auto" : "none"}
                   aria-label={item.alt}
+                  onPlay={() => i === activeRef.current && setPlaying(true)}
+                  onPause={() => i === activeRef.current && setPlaying(false)}
+                  onWaiting={() => i === activeRef.current && setBuffering(true)}
+                  onPlaying={() => i === activeRef.current && setBuffering(false)}
+                  onCanPlay={(e) => {
+                    if (i !== activeRef.current) return;
+                    setBuffering(false);
+                    // play() pedido antes de haver dados (ou interrompido no meio): tenta de novo agora
+                    if (shouldPlayRef.current && e.currentTarget.paused) startVideo(e.currentTarget);
+                  }}
+                  onError={(e) => {
+                    // falha de rede no meio do vídeo: recarrega uma vez e retoma
+                    const v = e.currentTarget;
+                    if (!v.currentSrc || v.dataset.retried) return;
+                    v.dataset.retried = "1";
+                    v.load();
+                    if (shouldPlayRef.current && i === activeRef.current) startVideo(v);
+                  }}
                 />
+                {isActive && buffering && playing && (
+                  <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden="true">
+                    <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+                  </div>
+                )}
                 {isActive && (
                   <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-4 pt-16">
                     <span className="text-sm font-semibold text-cream drop-shadow">{item.title as string}</span>
@@ -162,13 +260,13 @@ export default function VideoSection() {
                       <button
                         type="button"
                         className={iconBtn}
-                        aria-label={paused ? "Reproduzir vídeo" : "Pausar vídeo"}
+                        aria-label={playing ? "Pausar vídeo" : "Reproduzir vídeo"}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPaused(!paused);
+                          togglePlay();
                         }}
                       >
-                        {paused ? (
+                        {!playing ? (
                           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                             <path d="M8 5.5v13a1 1 0 001.5.87l11-6.5a1 1 0 000-1.74l-11-6.5A1 1 0 008 5.5z" />
                           </svg>
@@ -185,7 +283,7 @@ export default function VideoSection() {
                         aria-pressed={!muted}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setMuted((m) => !m);
+                          toggleMute();
                         }}
                       >
                         {muted ? (

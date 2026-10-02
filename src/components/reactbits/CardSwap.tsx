@@ -6,8 +6,12 @@
 //   esperam escondidas atrás da última, em vez de se espalharem pela tela.
 // - `containerClassName`: posicionamento do conjunto definido por quem usa.
 // - Card sem cores fixas (bg/borda vêm por `customClass`).
-// - Pausa com hover e com foco de teclado; sem troca automática com "reduzir movimento".
-// - A primeira troca acontece após `delay` (e não no instante em que a página carrega).
+// - Clicar num card de trás traz ele para a frente (os que estavam na frente dele vão para o fundo).
+// - Giro automático com pausas confiáveis (useCarouselAutoplay): hover só de mouse, foco só de teclado,
+//   parado fora da tela, com a aba oculta e com "reduzir movimento". A primeira troca acontece após `delay`.
+// - A ordem muda na hora em que a troca começa; uma troca nova parte de onde os cards estão
+//   (nunca duas animações brigando pelo mesmo card).
+// - As posições iniciais já vêm no HTML do servidor: a pilha não "pula" quando o JS carrega.
 
 import React, {
   Children,
@@ -19,9 +23,11 @@ import React, {
   type RefObject,
   useEffect,
   useMemo,
-  useRef
+  useRef,
+  useState
 } from 'react';
 import gsap from 'gsap';
+import useCarouselAutoplay from '@/hooks/useCarouselAutoplay';
 
 export interface CardSwapProps {
   width?: number | string;
@@ -36,6 +42,8 @@ export interface CardSwapProps {
   easing?: 'linear' | 'elastic';
   maxVisible?: number;
   containerClassName?: string;
+  /** Nome acessível do botão que traz um card de trás para a frente */
+  bringLabel?: (idx: number) => string;
   children: ReactNode;
 }
 
@@ -99,6 +107,7 @@ const CardSwap: React.FC<CardSwapProps> = ({
   easing = 'elastic',
   maxVisible = Infinity,
   containerClassName = DEFAULT_CONTAINER,
+  bringLabel,
   children
 }) => {
   const config =
@@ -121,150 +130,161 @@ const CardSwap: React.FC<CardSwapProps> = ({
         };
 
   const childArr = useMemo(() => Children.toArray(children) as ReactElement<CardProps>[], [children]);
+  const total = childArr.length;
+  const visible = Math.max(1, Math.min(maxVisible, total));
   const refs = useMemo<CardRef[]>(
     () => childArr.map(() => React.createRef<HTMLDivElement>()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [childArr.length]
   );
 
-  const order = useRef<number[]>(Array.from({ length: childArr.length }, (_, i) => i));
+  // `orderRef` comanda as animações; `order` (estado) só decide quais cards de trás têm botão
+  const orderRef = useRef<number[]>(Array.from({ length: total }, (_, i) => i));
+  const [order, setOrder] = useState<number[]>(() => orderRef.current);
   const onSwapRef = useRef(onSwap);
-  onSwapRef.current = onSwap;
-
   const tlRef = useRef<gsap.core.Timeline | null>(null);
-  const intervalRef = useRef<number>(0);
-  const container = useRef<HTMLDivElement>(null);
+  const focusNextBack = useRef(false);
 
   useEffect(() => {
-    const total = refs.length;
-    const visible = Math.max(1, Math.min(maxVisible, total));
-    refs.forEach((r, i) =>
-      placeNow(r.current!, makeSlot(i, cardDistance, verticalDistance, total, visible), skewAmount)
-    );
+    onSwapRef.current = onSwap;
+  });
 
+  // Posição inicial de cada card já no HTML do servidor (o GSAP assume a partir daí). Calculada uma
+  // vez só: como o valor não muda, o React nunca reescreve o transform que o GSAP está animando.
+  const [initialStyles] = useState(() =>
+    Array.from({ length: total }, (_, i) => {
+      const s = makeSlot(i, cardDistance, verticalDistance, total, visible);
+      return {
+        transform: `translate(-50%, -50%) translate3d(${s.x}px, ${s.y}px, ${s.z}px) skewY(${skewAmount}deg)`,
+        zIndex: s.zIndex
+      };
+    })
+  );
+
+  const slotOf = (i: number) => makeSlot(i, cardDistance, verticalDistance, refs.length, visible);
+
+  // Gira a pilha `steps` posições: os `steps` cards da frente caem e voltam pelo fundo
+  const rotate = (steps: number) => {
+    const cur = orderRef.current;
+    if (steps <= 0 || steps >= cur.length) return;
+    const goingBack = cur.slice(0, steps);
+    const staying = cur.slice(steps);
+    const next = [...staying, ...goingBack];
+    orderRef.current = next;
+    setOrder(next);
+    onSwapRef.current?.(next[0]);
+
+    tlRef.current?.kill();
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return;
+    if (reduceMotion) {
+      next.forEach((idx, i) => placeNow(refs[idx].current!, slotOf(i), skewAmount));
+      return;
+    }
 
-    const swap = () => {
-      if (order.current.length < 2) return;
+    const tl = gsap.timeline();
+    tlRef.current = tl;
 
-      const [front, ...rest] = order.current;
-      const elFront = refs[front].current!;
-      const tl = gsap.timeline();
-      tlRef.current = tl;
+    const dropY = slotOf(0).y + 500;
+    goingBack.forEach((idx, j) => {
+      tl.to(refs[idx].current!, { y: dropY, duration: config.durDrop, ease: config.ease }, j * 0.12);
+    });
 
-      tl.to(elFront, {
-        y: '+=500',
-        duration: config.durDrop,
-        ease: config.ease
-      });
-
-      tl.addLabel('promote', `-=${config.durDrop * config.promoteOverlap}`);
-      rest.forEach((idx, i) => {
-        const el = refs[idx].current!;
-        const slot = makeSlot(i, cardDistance, verticalDistance, refs.length, visible);
-        tl.set(el, { zIndex: slot.zIndex }, 'promote');
-        tl.to(
-          el,
-          {
-            x: slot.x,
-            y: slot.y,
-            z: slot.z,
-            duration: config.durMove,
-            ease: config.ease
-          },
-          `promote+=${i * 0.15}`
-        );
-      });
-
-      const backSlot = makeSlot(refs.length - 1, cardDistance, verticalDistance, refs.length, visible);
-      tl.addLabel('return', `promote+=${config.durMove * config.returnDelay}`);
-      tl.call(
-        () => {
-          gsap.set(elFront, { zIndex: backSlot.zIndex });
-        },
-        undefined,
-        'return'
-      );
+    tl.addLabel('promote', `-=${config.durDrop * config.promoteOverlap}`);
+    staying.forEach((idx, i) => {
+      const el = refs[idx].current!;
+      const slot = slotOf(i);
+      tl.set(el, { zIndex: slot.zIndex }, 'promote');
       tl.to(
-        elFront,
-        {
-          x: backSlot.x,
-          y: backSlot.y,
-          z: backSlot.z,
-          duration: config.durReturn,
-          ease: config.ease
-        },
-        'return'
+        el,
+        { x: slot.x, y: slot.y, z: slot.z, duration: config.durMove, ease: config.ease },
+        `promote+=${Math.min(i, visible) * 0.15}`
       );
+    });
 
-      tl.call(() => {
-        order.current = [...rest, front];
-        onSwapRef.current?.(rest[0]);
-      });
-    };
+    tl.addLabel('return', `promote+=${config.durMove * config.returnDelay}`);
+    goingBack.forEach((idx, j) => {
+      const el = refs[idx].current!;
+      const slot = slotOf(staying.length + j);
+      tl.set(el, { zIndex: slot.zIndex }, 'return');
+      tl.to(
+        el,
+        { x: slot.x, y: slot.y, z: slot.z, duration: config.durReturn, ease: config.ease },
+        `return+=${j * 0.08}`
+      );
+    });
+  };
 
-    intervalRef.current = window.setInterval(swap, delay);
+  const { ref: container, restart } = useCarouselAutoplay<HTMLDivElement>({
+    delay,
+    pauseOnHover,
+    onAdvance: () => rotate(1)
+  });
 
-    const node = container.current!;
-    let hovered = false;
-    let focused = false;
-    const pause = () => {
-      tlRef.current?.pause();
-      clearInterval(intervalRef.current);
-    };
-    const resume = () => {
-      if (hovered || focused) return;
-      tlRef.current?.play();
-      clearInterval(intervalRef.current);
-      intervalRef.current = window.setInterval(swap, delay);
-    };
-    const onEnter = () => {
-      if (!pauseOnHover) return;
-      hovered = true;
-      pause();
-    };
-    const onLeave = () => {
-      hovered = false;
-      resume();
-    };
-    const onFocusIn = () => {
-      focused = true;
-      pause();
-    };
-    const onFocusOut = (e: FocusEvent) => {
-      if (node.contains(e.relatedTarget as Node | null)) return;
-      focused = false;
-      resume();
-    };
-    node.addEventListener('mouseenter', onEnter);
-    node.addEventListener('mouseleave', onLeave);
-    node.addEventListener('focusin', onFocusIn);
-    node.addEventListener('focusout', onFocusOut);
+  useEffect(() => {
+    const current = orderRef.current;
+    current.forEach((idx, i) => {
+      const el = refs[idx].current!;
+      // Descarta o transform que veio do servidor antes de o GSAP assumir (senão ele o decompõe e soma)
+      gsap.set(el, { clearProps: 'transform' });
+      placeNow(el, slotOf(i), skewAmount);
+    });
     return () => {
-      node.removeEventListener('mouseenter', onEnter);
-      node.removeEventListener('mouseleave', onLeave);
-      node.removeEventListener('focusin', onFocusIn);
-      node.removeEventListener('focusout', onFocusOut);
-      clearInterval(intervalRef.current);
       tlRef.current?.kill();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing, maxVisible]);
+  }, [cardDistance, verticalDistance, skewAmount, maxVisible]);
 
-  const rendered = childArr.map((child, i) =>
-    isValidElement<CardProps>(child)
-      ? cloneElement(child, {
-          key: i,
-          ref: refs[i],
-          style: { width, height, ...(child.props.style ?? {}) },
-          onClick: e => {
-            child.props.onClick?.(e as React.MouseEvent<HTMLDivElement>);
-            onCardClick?.(i);
-          }
-        } as CardProps & React.RefAttributes<HTMLDivElement>)
-      : child
-  );
+  const bringToFront = (idx: number, fromKeyboard: boolean) => {
+    const pos = orderRef.current.indexOf(idx);
+    if (pos <= 0) return;
+    focusNextBack.current = fromKeyboard;
+    rotate(pos);
+    restart();
+  };
+
+  // Teclado: depois de trazer um card, o foco passa para o próximo card de trás (Enter de novo avança)
+  useEffect(() => {
+    if (!focusNextBack.current) return;
+    focusNextBack.current = false;
+    const nextBack = order[1];
+    if (nextBack === undefined) return;
+    refs[nextBack].current?.querySelector<HTMLButtonElement>('[data-bring-front]')?.focus();
+  }, [order, refs]);
+
+  const rendered = childArr.map((child, i) => {
+    if (!isValidElement<CardProps>(child)) return child;
+    const pos = order.indexOf(i);
+    const isBack = pos > 0 && pos < visible;
+    return cloneElement(child, {
+      key: i,
+      ref: refs[i],
+      style: { width, height, ...initialStyles[i], ...(child.props.style ?? {}) },
+      className: `${child.props.className ?? ''} ${isBack ? 'cursor-pointer' : ''}`.trim(),
+      onClick: (e: React.MouseEvent<HTMLDivElement>) => {
+        child.props.onClick?.(e);
+        onCardClick?.(i);
+        if (e.defaultPrevented) return;
+        bringToFront(i, false);
+      },
+      children: (
+        <>
+          {child.props.children}
+          {isBack && (
+            <button
+              type="button"
+              data-bring-front=""
+              className="absolute inset-0 rounded-[inherit]"
+              aria-label={bringLabel ? bringLabel(i) : 'Trazer este card para a frente'}
+              onClick={e => {
+                e.stopPropagation();
+                bringToFront(i, e.detail === 0);
+              }}
+            />
+          )}
+        </>
+      )
+    } as CardProps & React.RefAttributes<HTMLDivElement>);
+  });
 
   return (
     <div ref={container} className={containerClassName} style={{ width, height }}>

@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 // Animação 3D do logo (WebGL), gerada a partir de animacao-hero-js/src-3d
 const SCRIPT_SRC = "/js/quiro-hero-3d.js";
 
-type QuiroHero = { ready: Promise<void>; destroy(): void };
+// pause() é opcional: uma versão antiga do script em cache não tem
+type QuiroHero = { ready: Promise<void>; play(): void; pause?(): void; destroy(): void };
 
 declare global {
   interface Window {
@@ -43,18 +44,42 @@ function hasHardwareWebGL() {
 }
 
 export default function HeroSection() {
+  const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
+  // A seta "role para baixo" só anima com o hero na tela
+  const [onScreen, setOnScreen] = useState(true);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
     // Com "reduzir movimento" ativo, a própria animação desenha só o quadro final.
     let hero: QuiroHero | null = null;
+    let io: IntersectionObserver | null = null;
     let cancelled = false;
     (hasHardwareWebGL() ? loadHeroScript() : Promise.reject(new Error("Sem aceleração de vídeo")))
       .then(() => {
         if (cancelled || !canvasRef.current || !window.createQuiroHero3D) return;
-        hero = window.createQuiroHero3D(canvasRef.current); // lança erro se não houver WebGL
-        return hero.ready.then(() => {
+        // Em telas de toque (celulares, tablets) desenha em resolução um pouco menor: a cena tem sombras
+        // e reflexos, e em 2x/3x disputava a GPU com a rolagem da página
+        const coarse = window.matchMedia("(pointer: coarse)").matches;
+        const created = window.createQuiroHero3D(canvasRef.current, { maxDpr: coarse ? 1.5 : 2 }); // lança erro se não houver WebGL
+        hero = created;
+        // Fora da tela a cena para de desenhar (libera a GPU para a rolagem) e continua de onde parou ao voltar
+        if (sectionRef.current) {
+          io = new IntersectionObserver(([entry]) => {
+            if (entry.isIntersecting) created.play();
+            else created.pause?.();
+          });
+          io.observe(sectionRef.current);
+        }
+        return created.ready.then(() => {
           if (!cancelled) setStatus("ready");
         });
       })
@@ -63,12 +88,13 @@ export default function HeroSection() {
       });
     return () => {
       cancelled = true;
+      io?.disconnect();
       hero?.destroy();
     };
   }, []);
 
   return (
-    <section id="hero" className="relative h-screen min-h-[600px] w-full overflow-hidden bg-[#ebe7df]">
+    <section ref={sectionRef} id="hero" className="relative h-screen min-h-[600px] w-full overflow-hidden bg-[#ebe7df]">
       <h1 className="sr-only">Quiro+ — Quiropraxia e Fisioterapia com Priscila Santos em Bauru-SP</h1>
 
       {/* Animação 3D do logo sobre a parede de gesso */}
@@ -93,7 +119,7 @@ export default function HeroSection() {
         className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex h-11 w-11 items-center justify-center rounded-full text-white opacity-70 transition-opacity duration-300 hover:opacity-100"
       >
         <svg
-          className="w-6 h-6 animate-bounce-slow"
+          className={`w-6 h-6 ${onScreen ? "animate-bounce-slow" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

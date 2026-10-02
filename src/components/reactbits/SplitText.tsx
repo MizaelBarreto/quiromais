@@ -1,7 +1,8 @@
 'use client';
 
 // React Bits — Split Text (https://reactbits.dev), versão TS + Tailwind.
-// Adaptação: com "reduzir movimento" ativo o texto aparece direto, sem animação.
+// Adaptações: com "reduzir movimento" ativo o texto aparece direto, sem animação; sem will-change
+// permanente (cada letra virava uma camada de GPU desde o carregamento até o fim da página).
 
 import React, { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
@@ -128,9 +129,7 @@ const SplitText: React.FC<SplitTextProps> = ({
               onComplete: () => {
                 animationCompletedRef.current = true;
                 onCompleteRef.current?.();
-              },
-              willChange: 'transform, opacity',
-              force3D: true
+              }
             }
           );
         }
@@ -166,8 +165,7 @@ const SplitText: React.FC<SplitTextProps> = ({
   const renderTag = () => {
     const style: React.CSSProperties = {
       textAlign,
-      wordWrap: 'break-word',
-      willChange: 'transform, opacity'
+      wordWrap: 'break-word'
     };
     const classes = `split-parent overflow-hidden inline-block whitespace-normal ${className}`;
     const Tag = tag || 'p';

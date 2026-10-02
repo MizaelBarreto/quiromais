@@ -8,6 +8,7 @@ import SplitText from "./reactbits/SplitText";
 import GoldButton from "./GoldButton";
 import WhatsAppIcon from "./icons/WhatsAppIcon";
 import { SERVICES_DATA, WHATSAPP_NUMBER, type ServiceDetail } from "@/lib/constants";
+import useMediaQuery from "@/hooks/useMediaQuery";
 
 function ServiceIcon({ icon }: { icon: string }) {
   const icons: Record<string, React.ReactNode> = {
@@ -69,6 +70,8 @@ export default function ServicesSection() {
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const lastFocusRef = useRef<HTMLElement | null>(null);
+  // No celular os cards de trás aparecem menos à direita, para o da frente não ficar estreito
+  const compact = useMediaQuery("(max-width: 639px)");
 
   const currentCategory = SERVICES_DATA[activeTab];
 
@@ -146,7 +149,7 @@ export default function ServicesSection() {
           />
           <div className="w-20 h-0.5 bg-gradient-to-r from-transparent via-[#C9A15C] to-transparent mx-auto mb-6" />
           <p className="text-[#2B2318]/70 text-base sm:text-lg max-w-2xl mx-auto font-medium">
-            Clique em qualquer card para pausar e ver detalhes completos do tratamento.
+            Clique no card da frente para ver os detalhes do tratamento, ou nos cards de trás para trazê-los à frente.
           </p>
         </div>
 
@@ -175,7 +178,8 @@ export default function ServicesSection() {
 
         {/* CardSwap Container (Height: 600px) */}
         <div style={{ height: "600px", position: "relative" }} className="w-full max-w-xl mx-auto">
-          <AnimatePresence mode="wait">
+          {/* initial={false}: na primeira carga os cards já aparecem (sem esperar o JS para surgir) */}
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 20 }}
@@ -185,14 +189,15 @@ export default function ServicesSection() {
               className="w-full h-full"
             >
               <CardSwap
-                cardDistance={60}
-                verticalDistance={70}
+                cardDistance={compact ? 10 : 22}
+                verticalDistance={26}
+                cardHeight={480}
                 delay={3000}
                 pauseOnHover={true}
                 isPaused={!!selectedService}
               >
                 {currentCategory.services.map((service, sIdx) => (
-                  <Card key={service.name} onClick={() => setSelectedService(service)}>
+                  <Card key={service.name} label={service.name} onClick={() => setSelectedService(service)}>
                     <GlareHover
                       width="100%"
                       height="480px"
@@ -229,7 +234,10 @@ export default function ServicesSection() {
                             {service.description}
                           </p>
                           <span className="text-xs font-bold text-gold-deep uppercase tracking-wider underline underline-offset-4 flex items-center gap-1">
-                            Ver detalhes do tratamento
+                            {/* no celular o card é mais estreito: texto curto para caber numa linha */}
+                            <span>
+                              Ver detalhes<span className="hidden sm:inline"> do tratamento</span>
+                            </span>
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>

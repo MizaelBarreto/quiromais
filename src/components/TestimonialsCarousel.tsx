@@ -92,7 +92,8 @@ export default function TestimonialsCarousel() {
           </div>
         </div>
 
-        {/* React Bits — Card Swap: pilha de avaliações que se alterna sozinha (pausa no hover/foco) */}
+        {/* React Bits — Card Swap: pilha de avaliações que se alterna sozinha (pausa no hover/foco);
+            clicar num card de trás traz ele para a frente */}
         <div
           className="relative h-[430px] sm:h-[470px]"
           role="region"
@@ -109,12 +110,13 @@ export default function TestimonialsCarousel() {
             easing="linear"
             skewAmount={3}
             maxVisible={3}
+            bringLabel={(i) => `Mostrar a avaliação de ${REVIEWS_DATA[i].name}`}
             containerClassName="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -ml-8 mt-10 perspective-[1000px] overflow-visible"
           >
             {REVIEWS_DATA.map((review, i) => (
               <Card
                 key={i}
-                customClass="rounded-2xl bg-white border border-gold/25 shadow-[0_18px_45px_rgba(43,35,24,0.12)]"
+                customClass="rounded-2xl bg-white border border-gold/25 shadow-[0_18px_45px_rgba(43,35,24,0.12)] transition-[border-color] duration-300 hover:border-gold/60"
               >
                 <figure className="flex h-full flex-col p-7">
                   <div className="flex items-center justify-between mb-4">

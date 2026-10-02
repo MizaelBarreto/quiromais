@@ -161,12 +161,14 @@ export default function SpineScrollSection() {
         >
           <div className="relative w-[340px] xl:w-[380px] h-screen flex items-center justify-center">
             {/* Soft ambient background glow */}
-            <div className="absolute w-[460px] h-[460px] bg-radial from-[#C9A15C]/20 via-[#D8B77E]/10 to-transparent blur-3xl rounded-full opacity-70" />
+            <div className="absolute w-[460px] h-[460px] bg-radial from-[#C9A15C]/20 via-[#D8B77E]/10 to-transparent rounded-full opacity-70" />
 
-            {/* Spine Image Container — proporção real da imagem (249×1003; a coluna ocupa ~58% da largura e ~95% da altura) */}
+            {/* Spine Image Container — proporção real da imagem (249×1003; a coluna ocupa ~58% da largura e ~95% da altura).
+                will-change: fica sempre numa camada própria; sem isso a imagem (com sombra) era repintada
+                no começo e no fim de cada rolagem, quando o GSAP alterna entre transform 3D e 2D */}
             <div
               ref={spineImgRef}
-              className="relative h-[1300px] xl:h-[1560px] aspect-[249/1003] flex items-center justify-center"
+              className="relative h-[1300px] xl:h-[1560px] aspect-[249/1003] flex items-center justify-center will-change-transform"
             >
               <Image
                 src="/images/coluna-vertebral.webp"

@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WHATSAPP_URL } from "@/lib/constants";
 
 export default function WhatsAppFloat() {
   const [tooltip, setTooltip] = useState(false);
+  // O anel pulsa em rajadas (3 pulsos a cada 12 s) em vez de sem parar: animação infinita num elemento
+  // sempre visível obrigava o navegador a recalcular estilos a cada quadro, durante toda a visita
+  const [pingKey, setPingKey] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!document.hidden) setPingKey((k) => k + 1);
+    }, 12000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <motion.div
@@ -42,7 +51,10 @@ export default function WhatsAppFloat() {
         id="whatsapp-float-right"
       >
         {/* Pulse ring in gold */}
-        <span className="absolute inset-0 rounded-full bg-[#C9A15C] animate-ping opacity-35 pointer-events-none" />
+        <span
+          key={pingKey}
+          className="absolute inset-0 rounded-full bg-[#C9A15C] animate-ping [animation-iteration-count:3] opacity-35 pointer-events-none"
+        />
 
         {/* White WhatsApp Icon (larger) */}
         <svg className="w-8 h-8 sm:w-9 sm:h-9 text-white relative z-10 drop-shadow-sm" viewBox="0 0 24 24" fill="currentColor">

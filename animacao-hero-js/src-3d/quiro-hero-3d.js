@@ -1057,6 +1057,10 @@ function setupScene(canvas, renderer, env, assets, opts) {
       t = 0;
       return api.play();
     },
+    // para de desenhar (ex.: hero fora da tela) e continua do mesmo ponto no próximo play()
+    pause() {
+      stop();
+    },
     seek(s) {
       return ready.then(() => {
         stop();
@@ -1123,6 +1127,7 @@ export function createQuiroHero3D(canvas, options) {
     ready,
     duration: DURATION,
     play: () => ready.then(() => inner && inner.play()),
+    pause: () => ready.then(() => inner && inner.pause()),
     replay: () => ready.then(() => inner && inner.replay()),
     seek: (s) => ready.then(() => inner && inner.seek(s)),
     destroy() {

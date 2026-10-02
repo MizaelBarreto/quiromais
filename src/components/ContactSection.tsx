@@ -95,9 +95,10 @@ export default function ContactSection() {
 
   return (
     <section id="contato" className="section-padding bg-[#2B2318] text-[#F4EBDD] relative overflow-hidden py-24 sm:py-32">
-      {/* Background Animated Glows (CTA-01 Style) */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#C9A15C]/15 rounded-full blur-3xl pointer-events-none animate-pulse-gold" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[#D8B77E]/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Background Glows (CTA-01 Style) — gradiente radial e estático: a versão anterior (blur + box-shadow
+          animado sem parar) repintava a cada quadro e pesava na rolagem */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full pointer-events-none bg-[radial-gradient(circle,rgba(201,161,92,0.15)_0%,rgba(201,161,92,0.15)_30%,transparent_70%)]" aria-hidden="true" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 rounded-full pointer-events-none bg-[radial-gradient(circle,rgba(216,183,126,0.1)_0%,rgba(216,183,126,0.1)_30%,transparent_70%)]" aria-hidden="true" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
@@ -107,7 +108,7 @@ export default function ContactSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="bg-gradient-to-b from-[#2B2318] to-[#1E1810] border border-[#C9A15C]/35 rounded-3xl p-8 sm:p-12 lg:p-16 shadow-[0_25px_70px_rgba(0,0,0,0.4)] backdrop-blur-xl relative overflow-hidden"
+          className="bg-gradient-to-b from-[#2B2318] to-[#1E1810] border border-[#C9A15C]/35 rounded-3xl p-8 sm:p-12 lg:p-16 shadow-[0_25px_70px_rgba(0,0,0,0.4)] relative overflow-hidden"
         >
           {/* Top Gold Shimmer Bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C9A15C] to-transparent" />
@@ -249,7 +250,7 @@ export default function ContactSection() {
                             ? { scale: 1.01, borderColor: "#C9A15C" }
                             : { scale: 1, borderColor: "rgba(201, 161, 92, 0.25)" }
                         }
-                        className="bg-white/5 backdrop-blur-md rounded-2xl border transition-all p-4"
+                        className="bg-white/5 rounded-2xl border p-4"
                       >
                         <label htmlFor="cta-name" className="block text-xs uppercase tracking-wider font-semibold text-[#C9A15C] mb-1">
                           Nome Completo *
@@ -284,7 +285,7 @@ export default function ContactSection() {
                             ? { scale: 1.01, borderColor: "#C9A15C" }
                             : { scale: 1, borderColor: "rgba(201, 161, 92, 0.25)" }
                         }
-                        className="bg-white/5 backdrop-blur-md rounded-2xl border transition-all p-4"
+                        className="bg-white/5 rounded-2xl border p-4"
                       >
                         <label htmlFor="cta-phone" className="block text-xs uppercase tracking-wider font-semibold text-[#C9A15C] mb-1">
                           Telefone / WhatsApp *
@@ -320,7 +321,7 @@ export default function ContactSection() {
                             ? { scale: 1.01, borderColor: "#C9A15C" }
                             : { scale: 1, borderColor: "rgba(201, 161, 92, 0.25)" }
                         }
-                        className="bg-white/5 backdrop-blur-md rounded-2xl border transition-all p-4"
+                        className="bg-white/5 rounded-2xl border p-4"
                       >
                         <label htmlFor="cta-email" className="block text-xs uppercase tracking-wider font-semibold text-[#C9A15C] mb-1">
                           E-mail <span className="text-white/30 font-normal">(Opcional)</span>
